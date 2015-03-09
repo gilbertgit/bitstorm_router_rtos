@@ -81,7 +81,7 @@ static portTASK_FUNCTION(task_dispatch, params)
 #endif
 			if (result != pdTRUE )
 			{
-				led_alert_on();
+				//led_alert_on();
 			}
 		}
 
@@ -194,7 +194,7 @@ void task_ble_dispatch_start(UBaseType_t uxPriority)
 	xDispatchQueue = xQueueCreate( 10, BUFFER_SIZE );
 	if (xDispatchQueue == 0)
 	{
-		led_alert_on();
+		//led_alert_on();
 	} else
 	{
 		xTaskCreate(task_dispatch, "dispatch", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);

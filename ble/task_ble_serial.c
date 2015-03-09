@@ -43,21 +43,21 @@ static portTASK_FUNCTION(task_ble, params)
 		{
 			if (inChar == '\n')
 			{
-				led_alert_off();
+				//led_alert_off();
 				inBuffer[bufferIndex] = 0;
 				result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
 				//serial_putsz(pxOut, "[RCV] ");
 				bufferIndex = 0;
 				if (result != pdTRUE )
 				{
-					led_alert_on();
+					//led_alert_on();
 				}
 			} else
 			{
 				inBuffer[bufferIndex++] = inChar;
 				if (bufferIndex >= BUFFER_MAX)
 				{
-					led_alert_on();
+					//led_alert_on();
 					bufferIndex = 0;
 				}
 			}

@@ -5,6 +5,9 @@
  *      Author: titan
  */
 
+#include <stdio.h>
+
+
 #include "../ble/task_ble_dispatch.h"
 #include "wan_task.h"
 #include "wan_msg.h"
@@ -16,6 +19,9 @@
 #define QUEUE_TICKS		10
 static signed char outBuffer[BUFFER_SIZE];
 static uint8_t inBuffer[BUFFER_SIZE];
+static uint8_t frame[80];
+static app_msg_t app_msg;
+static cmd_send_header_t cmd_header;
 
 QueueHandle_t xWANQueue;
 
@@ -27,20 +33,26 @@ static int frame_index = 0;
 static int frame_length = 0;
 bool frame_ready = false;
 
+const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
+static xComPortHandle pxWan;
+static UBaseType_t hwm = 0;
+
 static portTASK_FUNCTION(task_wan, params)
 {
 	BaseType_t result;
 
-	xComPortHandle pxWan;
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
 	//xSerialPutChar(pxWan, 0xAA,0);
+
+
 	for (;;)
 	{
 
 		if (state == CONFIGURE)
 		{
 
+			vTaskDelay(xDelay);
 			//wan_state_configure();
 			wan_get_device_address();
 			waitForResp(pxWan, result);
@@ -93,10 +105,6 @@ void waitForResp(xComPortHandle pxWan, BaseType_t result)
 void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 {
 
-	app_msg_t app_msg;
-	cmd_send_header_t cmd_header;
-	uint8_t frame[80];
-
 	build_app_msg(msg, &app_msg);
 
 	frame[0] = sizeof(cmd_header) + sizeof(app_msg) + 1;
@@ -132,10 +140,19 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 		;
 	frame[frame_index++] = cs;
 
+//	hwm = uxTaskGetStackHighWaterMark(NULL);
+//	sprintf((char*)frame, "B:%d ", hwm);
+//	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
+
 	for (int i = 0; i < frame_index;)
 	{
-		xSerialPutChar(hnd, frame[i++], 5);
+		//xSerialPutChar(hnd, frame[i++], 5);
+		xSerialPutChar(pxWan, 'X', 5); i++;
 	}
+
+	hwm = uxTaskGetStackHighWaterMark(NULL);
+	sprintf((char*)frame, "A:%d\r\n", hwm);
+	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
 }
 
 void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg)
@@ -192,7 +209,7 @@ void task_wan_start(UBaseType_t uxPriority)
 	xWANQueue = xQueueCreate( 10, BUFFER_SIZE );
 	if (xWANQueue == 0)
 	{
-		led_alert_on();
+		//led_alert_on();
 	} else
 	{
 		xTaskCreate(task_wan, "wan", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);

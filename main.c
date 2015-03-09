@@ -23,13 +23,15 @@ int main(void) {
 	clock_init();
 	ramdisk_init();
 	sei();
-	task_blinky_start( (tskIDLE_PRIORITY+1) );
-	//task_serial_test_start( (tskIDLE_PRIORITY+2) );
 
-	task_ble_monitor_start(tskIDLE_PRIORITY+2);
-	task_wan_start(tskIDLE_PRIORITY+3);
-	task_ble_dispatch_start(tskIDLE_PRIORITY+4);
-	task_ble_serial_start(tskIDLE_PRIORITY+5);
+	task_blinky_start( (tskIDLE_PRIORITY+1) );
+	task_ble_monitor_start(tskIDLE_PRIORITY+1);
+
+	task_ble_dispatch_start(tskIDLE_PRIORITY+2);
+	task_wan_start(tskIDLE_PRIORITY+2);
+
+	task_ble_serial_start(tskIDLE_PRIORITY+3);
+
 	vTaskStartScheduler();
 
 	while(1)
