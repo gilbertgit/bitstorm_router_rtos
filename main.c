@@ -20,6 +20,8 @@
 
 int main(void) {
 
+	DDRB &= _BV(PB0);
+	DDRB &= _BV(PB1);
 	clock_init();
 	ramdisk_init();
 	sei();

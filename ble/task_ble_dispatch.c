@@ -66,7 +66,7 @@ static portTASK_FUNCTION(task_dispatch, params)
 						temp->count = temp->count + 1;
 
 						// is the packet stale?
-						if ((clock_time() - temp->last_sent) > 5000)
+						//if ((clock_time() - temp->last_sent) > 5000)
 						{
 							// send standard packet
 

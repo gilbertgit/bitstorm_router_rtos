@@ -7,12 +7,16 @@
 
 #include <stdio.h>
 
-
 #include "../ble/task_ble_dispatch.h"
 #include "wan_task.h"
 #include "wan_msg.h"
 #include "wan_config.h"
 #include "../shared.h"
+
+#define NWK_READY (PINB & (1 << PB0))
+#define NWK_BUSY  (~(PINB & (1 << PB0)))
+
+#define NWK_CONFIG (~(PINB & (1 << PB1)))
 
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
@@ -28,7 +32,7 @@ QueueHandle_t xWANQueue;
 enum states {
 	CONFIGURE, WAIT_FOR_DATA, WAIT_FOR_NWK_BUSY, WAIT_FOR_NWK_READY
 };
-static uint8_t state = WAIT_FOR_DATA;
+static uint8_t state = CONFIGURE;
 static int frame_index = 0;
 static int frame_length = 0;
 bool frame_ready = false;
@@ -46,42 +50,54 @@ static portTASK_FUNCTION(task_wan, params)
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
 
+	vTaskDelay(xDelay);		// Wait 500
 	for (;;)
 	{
 
-		if (state == CONFIGURE)
-		{
-			// RESET THE WAN (ZIGBIT)
-//			PORTB &= ~(1 << PB7);	// Low
-//			vTaskDelay(xDelayLow); 	// Wait 250
-//			PORTB |= (1 << PB7);	// High
-			vTaskDelay(xDelay);		// Wait 500
-
-			wan_get_device_address();
-			waitForResp(pxWan, result);
-			config_mac_resp((mac_resp_t *) &inBuffer[1]);
-			frame_index = 0;
-
-			wan_config_network();
-			waitForResp(pxWan, result);
-			config_ntw_resp((config_ntw_resp_t *) &inBuffer[1]);
-			frame_index = 0;
-			state = WAIT_FOR_DATA;
-
-		} else
-		{
+//		if (state == CONFIGURE)
+//		{
+//			//if (state == CONFIGURE)
+//			//{
+//			// RESET THE WAN (ZIGBIT)
+////			PORTB &= ~(1 << PB7);	// Low
+////			vTaskDelay(xDelayLow); 	// Wait 250
+////			PORTB |= (1 << PB7);	// High
+//			//vTaskDelay(xDelay);		// Wait 500
+//
+		configure_wan();
+//
+//			//}
+//
+//		} else
+		//{
 			result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
 			if (result == pdTRUE )
 			{
+				if(!NWK_CONFIG)
 				sendMessage(pxWan, (btle_msg_t *) outBuffer);
 			}
-		}
+		//}
 
 	}
 }
 
-void waitForResp(xComPortHandle pxWan, BaseType_t result)
+void configure_wan()
 {
+	wan_get_device_address();
+	waitForResp();
+	config_mac_resp((mac_resp_t *) &inBuffer[1]);
+	frame_index = 0;
+
+	wan_config_network();
+	waitForResp();
+	config_ntw_resp((config_ntw_resp_t *) &inBuffer[1]);
+	frame_index = 0;
+	state = WAIT_FOR_DATA;
+}
+
+void waitForResp()
+{
+	BaseType_t result;
 	signed char inChar;
 	bool waiting = true;
 	while (waiting)

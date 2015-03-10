@@ -35,7 +35,10 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/FreeRTOS/Source/portable/GCC/ATMega1284p}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/FreeRTOS/Source/include}&quot;"/>
 								</option>
-								<option id="de.innot.avreclipse.compiler.option.def.108918638" name="Define Syms (-D)" superClass="de.innot.avreclipse.compiler.option.def"/>
+								<option id="de.innot.avreclipse.compiler.option.def.108918638" name="Define Syms (-D)" superClass="de.innot.avreclipse.compiler.option.def" valueType="definedSymbols"/>
+								<option id="de.innot.avreclipse.compiler.option.undef.1381156375" superClass="de.innot.avreclipse.compiler.option.undef" valueType="undefDefinedSymbols">
+									<listOptionValue builtIn="false" value="BYPASS_MODE"/>
+								</option>
 								<inputType id="de.innot.avreclipse.compiler.winavr.input.1227804704" name="C Source Files" superClass="de.innot.avreclipse.compiler.winavr.input"/>
 							</tool>
 							<tool id="de.innot.avreclipse.tool.cppcompiler.app.debug.1617626041" name="AVR C++ Compiler" superClass="de.innot.avreclipse.tool.cppcompiler.app.debug">

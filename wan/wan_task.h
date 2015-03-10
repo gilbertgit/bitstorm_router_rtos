@@ -19,5 +19,6 @@ void task_wan_start(UBaseType_t uxPriority);
 void sendMessage(xComPortHandle hnd, btle_msg_t *msg);
 void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg);
 void wan_state_configure(void);
-void waitForResp(xComPortHandle pxWan, BaseType_t result);
+void waitForResp();
+void configure_wan();
 #endif /* TASK_WAN_H_ */
