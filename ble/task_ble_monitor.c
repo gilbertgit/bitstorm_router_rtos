@@ -11,11 +11,11 @@
 #include "../wan/wan_task.h"
 
 static btle_msg_t *next_msg = NULL;
+static BaseType_t result;
+static btle_msg_t *msg;
 
 static portTASK_FUNCTION( task_monitor, params)
 {
-	BaseType_t result;
-	btle_msg_t *msg;
 	for (;;)
 	{
 		if (next_msg != NULL )

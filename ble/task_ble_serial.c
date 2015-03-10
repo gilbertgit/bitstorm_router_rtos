@@ -23,7 +23,7 @@ static portTASK_FUNCTION(task_ble, params)
 	signed char inChar;
 	xComPortHandle pxIn;
 
-	pxIn = xSerialPortInitMinimal(1, 38400, 50);
+	pxIn = xSerialPortInitMinimal(1, 38400, 50); // ble
 
 //	xComPortHandle pxOut;
 //	pxOut = xSerialPortInitMinimal(0, 38400, 64); //WAN

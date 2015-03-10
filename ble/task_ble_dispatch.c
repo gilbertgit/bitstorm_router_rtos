@@ -21,14 +21,13 @@ char HEX_DIGITS[] = "0123456789abcdef";
 #define QUEUE_TICKS		10
 
 static signed char outBuffer[BUFFER_SIZE];
+static BaseType_t result;
+static btle_msg_t msg;
 
 QueueHandle_t xDispatchQueue;
 
 static portTASK_FUNCTION(task_dispatch, params)
 {
-
-	BaseType_t result;
-	btle_msg_t msg;
 
 	for (;;)
 	{

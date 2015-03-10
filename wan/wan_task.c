@@ -28,32 +28,35 @@ QueueHandle_t xWANQueue;
 enum states {
 	CONFIGURE, WAIT_FOR_DATA, WAIT_FOR_NWK_BUSY, WAIT_FOR_NWK_READY
 };
-static uint8_t state = CONFIGURE;
+static uint8_t state = WAIT_FOR_DATA;
 static int frame_index = 0;
 static int frame_length = 0;
 bool frame_ready = false;
 
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
+//const static TickType_t xDelayLow = 250 / portTICK_PERIOD_MS;
+
 static xComPortHandle pxWan;
-static UBaseType_t hwm = 0;
+//static UBaseType_t hwm = 0;
 
 static portTASK_FUNCTION(task_wan, params)
 {
 	BaseType_t result;
-
+	//DDRB |= _BV(PB7); // RESET PIN OUTPUT
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
-	//xSerialPutChar(pxWan, 0xAA,0);
-
 
 	for (;;)
 	{
 
 		if (state == CONFIGURE)
 		{
+			// RESET THE WAN (ZIGBIT)
+//			PORTB &= ~(1 << PB7);	// Low
+//			vTaskDelay(xDelayLow); 	// Wait 250
+//			PORTB |= (1 << PB7);	// High
+			vTaskDelay(xDelay);		// Wait 500
 
-			vTaskDelay(xDelay);
-			//wan_state_configure();
 			wan_get_device_address();
 			waitForResp(pxWan, result);
 			config_mac_resp((mac_resp_t *) &inBuffer[1]);
@@ -146,13 +149,13 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 
 	for (int i = 0; i < frame_index;)
 	{
-		//xSerialPutChar(hnd, frame[i++], 5);
-		xSerialPutChar(pxWan, 'X', 5); i++;
+		xSerialPutChar(hnd, frame[i++], 5);
+		//xSerialPutChar(pxWan, 'X', 5); i++;
 	}
 
-	hwm = uxTaskGetStackHighWaterMark(NULL);
-	sprintf((char*)frame, "A:%d\r\n", hwm);
-	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
+//	hwm = uxTaskGetStackHighWaterMark(NULL);
+//	sprintf((char*)frame, "A:%d\r\n", hwm);
+//	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
 }
 
 void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg)
