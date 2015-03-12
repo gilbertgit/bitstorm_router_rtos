@@ -16,7 +16,7 @@
 #define NWK_READY (PINB & (1 << PB0))
 #define NWK_BUSY  (~(PINB & (1 << PB0)))
 
-#define NWK_CONFIG (~(PINB & (1 << PB1)))
+#define NWK_CONFIG (PINB & (1 << PB1))
 
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
@@ -38,7 +38,7 @@ static int frame_length = 0;
 bool frame_ready = false;
 
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
-//const static TickType_t xDelayLow = 250 / portTICK_PERIOD_MS;
+const static TickType_t xDelaySend = 50 / portTICK_PERIOD_MS;
 
 static xComPortHandle pxWan;
 //static UBaseType_t hwm = 0;
@@ -46,16 +46,16 @@ static xComPortHandle pxWan;
 static portTASK_FUNCTION(task_wan, params)
 {
 	BaseType_t result;
-	//DDRB |= _BV(PB7); // RESET PIN OUTPUT
+	DDRB |= _BV(PB7); // RESET PIN OUTPUT
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
-
 	vTaskDelay(xDelay);		// Wait 500
+
 	for (;;)
 	{
 
-//		if (state == CONFIGURE)
-//		{
+		if (!(PINB & (1 << PB1)))
+		{
 //			//if (state == CONFIGURE)
 //			//{
 //			// RESET THE WAN (ZIGBIT)
@@ -64,19 +64,20 @@ static portTASK_FUNCTION(task_wan, params)
 ////			PORTB |= (1 << PB7);	// High
 //			//vTaskDelay(xDelay);		// Wait 500
 //
-		configure_wan();
-//
-//			//}
-//
-//		} else
-		//{
-			result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
-			if (result == pdTRUE )
+
+			configure_wan();
+		} else
+		{
+			if (NWK_READY)
 			{
-				if(!NWK_CONFIG)
-				sendMessage(pxWan, (btle_msg_t *) outBuffer);
+				vTaskDelay(xDelaySend);
+				result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
+				if (result == pdTRUE )
+				{
+					sendMessage(pxWan, (btle_msg_t *) outBuffer);
+				}
 			}
-		//}
+		}
 
 	}
 }
@@ -92,7 +93,7 @@ void configure_wan()
 	waitForResp();
 	config_ntw_resp((config_ntw_resp_t *) &inBuffer[1]);
 	frame_index = 0;
-	state = WAIT_FOR_DATA;
+
 }
 
 void waitForResp()

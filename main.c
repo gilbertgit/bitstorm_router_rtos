@@ -21,7 +21,8 @@
 int main(void) {
 
 	DDRB &= _BV(PB0);
-	DDRB &= _BV(PB1);
+	DDRB &= ~(1<<PB1); //INPUT
+	PORTB |= (1<<PB1);
 	clock_init();
 	ramdisk_init();
 	sei();
