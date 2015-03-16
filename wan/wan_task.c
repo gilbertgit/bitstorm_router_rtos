@@ -56,15 +56,6 @@ static portTASK_FUNCTION(task_wan, params)
 
 		if (!(PINB & (1 << PB1)))
 		{
-//			//if (state == CONFIGURE)
-//			//{
-//			// RESET THE WAN (ZIGBIT)
-////			PORTB &= ~(1 << PB7);	// Low
-////			vTaskDelay(xDelayLow); 	// Wait 250
-////			PORTB |= (1 << PB7);	// High
-//			//vTaskDelay(xDelay);		// Wait 500
-//
-
 			configure_wan();
 		} else
 		{
