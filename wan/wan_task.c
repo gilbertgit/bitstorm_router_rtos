@@ -18,6 +18,8 @@
 
 #define NWK_CONFIG (PINB & (1 << PB1))
 
+#define WAN_BUSY 0x01
+
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
 #define QUEUE_TICKS		10
@@ -26,6 +28,8 @@ static uint8_t inBuffer[BUFFER_SIZE];
 static uint8_t frame[80];
 static app_msg_t app_msg;
 static cmd_send_header_t cmd_header;
+static TaskHandle_t xHandlingTask;
+static unsigned long ulNotifiedValue;
 
 QueueHandle_t xWANQueue;
 
@@ -42,11 +46,13 @@ const static TickType_t xDelaySend = 50 / portTICK_PERIOD_MS;
 
 static xComPortHandle pxWan;
 //static UBaseType_t hwm = 0;
+bool ready_to_send = false;
+
 
 static portTASK_FUNCTION(task_wan, params)
 {
+
 	BaseType_t result;
-	DDRB |= _BV(PB7); // RESET PIN OUTPUT
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
 	vTaskDelay(xDelay);		// Wait 500
@@ -54,22 +60,40 @@ static portTASK_FUNCTION(task_wan, params)
 	for (;;)
 	{
 
-		if (!(PINB & (1 << PB1)))
+		if (!(PINB & (1 << PB1))) // PIN IS LOW SO CONFIGURE
 		{
 			configure_wan();
 		} else
 		{
-			if (NWK_READY)
-			{
-				vTaskDelay(xDelaySend);
-				result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
-				if (result == pdTRUE )
+				if (NWK_READY)
 				{
-					sendMessage(pxWan, (btle_msg_t *) outBuffer);
+					//vTaskDelay(xDelaySend); // hack to slow down the messages sent
+					result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
+					if (result == pdTRUE )
+					{
+						sendMessage(pxWan, (btle_msg_t *) outBuffer);
+
+						 result = xTaskNotifyWait( pdFALSE,          /* Don't clear bits on entry. */
+								 	 	 	 	 	 	   0xffffffff,        /* Clear all bits on exit. */
+						                                   &ulNotifiedValue, /* Stores the notified value. */
+						                                   xDelaySend );
+
+						 // TODO: handle timeout errors
+					}
 				}
-			}
+			//}
 		}
 
+	}
+}
+
+ISR(PCINT1_vect)
+{
+
+	uint8_t value = PINB & (1 << PB0);
+	if (value == 0) // PIN IS HIGH, SO WE CAN SEND
+	{
+		xTaskNotifyFromISR( xHandlingTask, WAN_BUSY, eSetBits, NULL );
 	}
 }
 
@@ -223,6 +247,6 @@ void task_wan_start(UBaseType_t uxPriority)
 		//led_alert_on();
 	} else
 	{
-		xTaskCreate(task_wan, "wan", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
+		xTaskCreate(task_wan, "wan", configMINIMAL_STACK_SIZE, NULL, uxPriority, &xHandlingTask);
 	}
 }

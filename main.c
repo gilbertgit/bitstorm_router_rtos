@@ -20,7 +20,12 @@
 
 int main(void) {
 
-	DDRB &= _BV(PB0);
+	// PB0 is used for CTS of message
+	DDRB &= ~(1<<PB0);// SET PB0 TO INPUT
+	PCICR |= (1 << PCIE1);
+	PCMSK1 |= (1 << PCINT8);
+
+	// PB1 is used for configure
 	DDRB &= ~(1<<PB1); //INPUT
 	PORTB |= (1<<PB1);
 	clock_init();
