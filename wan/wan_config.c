@@ -86,6 +86,34 @@ void wan_config_network()
 	}
 }
 
+void wan_config_done()
+{
+	xComPortHandle pxOut;
+	pxOut = xSerialPortInitMinimal(0, 38400, 10);
+
+	cmd_header_t cmd_header;
+	uint8_t frame[10];
+	frame[0] = sizeof(cmd_header) + 1;
+	cmd_header.command = CMD_CONFIG_DONE;
+	int frame_index = 1;
+
+	// header
+	for (int i = 0; i < sizeof(cmd_header); i++)
+	{
+		frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
+	}
+	// checksum
+	uint8_t cs = 0;
+	for (int i = 0; i < frame_index; cs ^= frame[i++])
+		;
+	frame[frame_index++] = cs;
+
+	for (int i = 0; i < frame_index;)
+	{
+		xSerialPutChar(pxOut, frame[i++], 5);
+	}
+}
+
 bool wan_config_received(uint8_t * buff)
 {
 	resp_type = buff[1];

@@ -9,6 +9,7 @@
 #include <avr/interrupt.h>
 #include "defines.h"
 #include "clock.h"
+#include <stdbool.h>
 
 volatile clock_time_t clock_millis;
 //volatile clock_time_t future;

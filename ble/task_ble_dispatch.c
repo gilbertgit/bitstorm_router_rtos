@@ -28,55 +28,59 @@ QueueHandle_t xDispatchQueue;
 
 static portTASK_FUNCTION(task_dispatch, params)
 {
-
+	xComPortHandle pxOut;
+	pxOut = xSerialPortInitMinimal(0, 38400, 10);
 	for (;;)
 	{
 		result = xQueueReceive( xDispatchQueue, outBuffer, QUEUE_TICKS);
 		if (result == pdTRUE )
 		{
-			// TODO: Make decisions on the messages from the ble
+			// Make decisions on the messages from the ble
 			btle_handle_le_packet((char *) outBuffer, &msg);
 
 #ifdef BYPASS_MODE
 			msg.type = MSG_TYPE_NORM;
 			result = xQueueSendToBack( xWANQueue, &msg, 0);
 #else
-				if (msg.mac != 0)
+			if (msg.mac != 0)
+			{
+				btle_msg_t *temp = ramdisk_find(msg.mac);
+
+				// no package in ramdisk
+				if (temp == NULL )
 				{
-					btle_msg_t *temp = ramdisk_find(msg.mac);
+					// new packet
+					msg.last_sent = clock_time();
+					msg.count = 1;
+					ramdisk_write(msg);
+					msg.type = MSG_TYPE_IN_PROX;
+					result = xQueueSendToBack( xWANQueue, &msg, 0);
+					// send in proximity
+				} else
+				{
+					// package in RAM
+					// update packet
+					temp->rssi = msg.rssi;
+					temp->batt = msg.batt;
+					temp->temp = msg.temp;
+					temp->count = temp->count + 1;
 
-					// no package in ramdisk
-					if (temp == NULL )
+//					if((clock_time() - temp->last_sent) > 10000)
+//						led_alert_on();
+
+					// is the packet stale?
+					//if ((clock_time() - temp->last_sent) > 5000)
 					{
-						// new packet
-						msg.last_sent = clock_time();
-						msg.count = 1;
-						ramdisk_write(msg);
-						msg.type = MSG_TYPE_IN_PROX;
-						result = xQueueSendToBack( xWANQueue, &msg, 0);
+						// send standard packet
+						temp->type = MSG_TYPE_NORM;
+						temp->last_sent = clock_time();
+						result = xQueueSendToBack( xWANQueue, temp, 0);
 
-						// send in proximity
-					} else
-					{
-						// package in RAM
-						// update packet
-						temp->rssi = msg.rssi;
-						temp->batt = msg.batt;
-						temp->temp = msg.temp;
-						temp->count = temp->count + 1;
-
-						// is the packet stale?
-						//if ((clock_time() - temp->last_sent) > 5000)
-						{
-							// send standard packet
-
-							temp->type = MSG_TYPE_NORM;
-							result = xQueueSendToBack( xWANQueue, temp, 0);
-							temp->last_sent = clock_time();
-						}
 
 					}
+
 				}
+			}
 #endif
 			if (result != pdTRUE )
 			{

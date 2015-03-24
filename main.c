@@ -35,10 +35,10 @@ int main(void) {
 	task_blinky_start( (tskIDLE_PRIORITY+1) );
 	task_ble_monitor_start(tskIDLE_PRIORITY+1);
 
-	task_ble_dispatch_start(tskIDLE_PRIORITY+2);
-	task_wan_start(tskIDLE_PRIORITY+2);
+	task_ble_dispatch_start(tskIDLE_PRIORITY+1);
+	task_wan_start(tskIDLE_PRIORITY+1);
 
-	task_ble_serial_start(tskIDLE_PRIORITY+3);
+	task_ble_serial_start(tskIDLE_PRIORITY+1);
 
 	vTaskStartScheduler();
 

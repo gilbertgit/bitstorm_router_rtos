@@ -42,16 +42,21 @@ static int frame_length = 0;
 bool frame_ready = false;
 
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
-const static TickType_t xDelaySend = 50 / portTICK_PERIOD_MS;
+const static TickType_t xDelaySend = 500 / portTICK_PERIOD_MS;
 
 static xComPortHandle pxWan;
 //static UBaseType_t hwm = 0;
 bool ready_to_send = false;
 
+static volatile int counter;
+
+static void synchronize();
 
 static portTASK_FUNCTION(task_wan, params)
 {
 
+	signed char c;
+	bool has_syncd;
 	BaseType_t result;
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
@@ -65,40 +70,67 @@ static portTASK_FUNCTION(task_wan, params)
 			configure_wan();
 		} else
 		{
-				if (NWK_READY)
+			c = 0;
+			has_syncd = false;
+			while (xSerialGetChar(pxWan, &c, 0))
+			{
+				if (c == 'T' || c == 'E' || c == 'F' || c == 'G')
 				{
-					//vTaskDelay(xDelaySend); // hack to slow down the messages sent
-					result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
-					if (result == pdTRUE )
+					if (!has_syncd)
 					{
-						sendMessage(pxWan, (btle_msg_t *) outBuffer);
-
-						 result = xTaskNotifyWait( pdFALSE,          /* Don't clear bits on entry. */
-								 	 	 	 	 	 	   0xffffffff,        /* Clear all bits on exit. */
-						                                   &ulNotifiedValue, /* Stores the notified value. */
-						                                   xDelaySend );
-
-						 // TODO: handle timeout errors
+						synchronize();
+						has_syncd = true;
 					}
+
 				}
-			//}
+			}
+
+			if (NWK_READY)
+			{
+				result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
+				if (result == pdTRUE )
+				{
+					sendMessage(pxWan, (btle_msg_t *) outBuffer);
+
+					result = xTaskNotifyWait(pdFALSE, /* Don't clear bits on entry. */
+					0xffffffff, /* Clear all bits on exit. */
+					&ulNotifiedValue, /* Stores the notified value. */
+					xDelaySend);
+
+					if (result == pdFALSE )
+						led_alert_on();
+					else
+						led_alert_off();
+
+					// TODO: handle timeout errors
+				}
+			}
 		}
 
 	}
 }
 
+static void synchronize()
+{
+	while (NWK_READY)
+	{
+		xSerialPutChar(pxWan, 'X', 5);
+	}
+}
+
 ISR(PCINT1_vect)
 {
-
 	uint8_t value = PINB & (1 << PB0);
-	if (value == 0) // PIN IS HIGH, SO WE CAN SEND
+	if (value == 0) // PIN IS LOW, SO WE SENT
 	{
-		xTaskNotifyFromISR( xHandlingTask, WAN_BUSY, eSetBits, NULL );
+		xTaskNotifyFromISR(xHandlingTask, WAN_BUSY, eSetBits, NULL );
 	}
 }
 
 void configure_wan()
 {
+	// TODO: check that network was configured properly before continue
+	led_alert_on();
 	wan_get_device_address();
 	waitForResp();
 	config_mac_resp((mac_resp_t *) &inBuffer[1]);
@@ -106,9 +138,14 @@ void configure_wan()
 
 	wan_config_network();
 	waitForResp();
+
+	wan_config_done();
 	config_ntw_resp((config_ntw_resp_t *) &inBuffer[1]);
+
 	frame_index = 0;
 
+	vTaskDelay(xDelay);
+	led_alert_off();
 }
 
 void waitForResp()

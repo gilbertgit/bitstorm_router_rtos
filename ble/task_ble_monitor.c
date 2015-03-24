@@ -24,6 +24,7 @@ static portTASK_FUNCTION( task_monitor, params)
 			next_msg = ramdisk_next(next_msg);
 			if ((clock_time() - msg->last_sent) >= 10000)
 			{
+				//led_alert_on();
 				//send "is out of prox packet"
 				msg->type = MSG_TYPE_OUT_PROX;
 				result = xQueueSendToBack( xWANQueue, msg, 0);
