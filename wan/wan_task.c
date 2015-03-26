@@ -16,7 +16,7 @@
 #define NWK_READY (PINB & (1 << PB0))
 #define NWK_BUSY  (~(PINB & (1 << PB0)))
 
-#define NWK_CONFIG (PINB & (1 << PB1))
+#define NWK_CONFIG !(PINB & (1 << PB1))
 
 #define WAN_BUSY 0x01
 
@@ -41,31 +41,32 @@ static int frame_index = 0;
 static int frame_length = 0;
 bool frame_ready = false;
 
+static bool wan_config_good = true;
+static int wan_config_retry = 0;
+
+const static TickType_t xDelayTest = 50 / portTICK_PERIOD_MS;
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 const static TickType_t xDelaySend = 500 / portTICK_PERIOD_MS;
 
 static xComPortHandle pxWan;
 //static UBaseType_t hwm = 0;
-bool ready_to_send = false;
-
-static volatile int counter;
 
 static void synchronize();
+void waitForAddressResp();
+void waitForNwkConfigResp();
 
 static portTASK_FUNCTION(task_wan, params)
 {
-
 	signed char c;
 	bool has_syncd;
 	BaseType_t result;
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
-	vTaskDelay(xDelay);		// Wait 500
+	vTaskDelay(xDelay);		// Wait 500 to make sure all systems are up before we start sending
 
 	for (;;)
 	{
-
-		if (!(PINB & (1 << PB1))) // PIN IS LOW SO CONFIGURE
+		if (NWK_CONFIG) // PIN IS LOW SO CONFIGURE
 		{
 			configure_wan();
 		} else
@@ -129,33 +130,75 @@ ISR(PCINT1_vect)
 
 void configure_wan()
 {
-	// TODO: check that network was configured properly before continue
+	wan_config_retry++;
 	led_alert_on();
-	wan_get_device_address();
-	waitForResp();
-	config_mac_resp((mac_resp_t *) &inBuffer[1]);
-	frame_index = 0;
 
+	// get mac address so we can configure the wan
+	wan_get_device_address(); // send request for mac
+	waitForAddressResp(); // wait for mac
+	config_mac_resp((mac_resp_t *) &inBuffer[1]); //save the mac
+	frame_index = 0; // reset the frame
+
+	// now that we have the mac from the wan, send entire nwk config
 	wan_config_network();
-	waitForResp();
+	waitForNwkConfigResp();
+	frame_index = 0;
 
+	// make sure everything went well with the config, if not, retry
+	if (!wan_config_good)
+	{
+		configure_wan();
+		if (wan_config_retry == 3)
+		{
+			synchronize();
+			vTaskDelay(xDelay);
+			configure_wan();
+		}
+	}
+
+	// after we get a response that the nwk has been configured,
+	// we send a message saying we are done with all configurations
+	// this will tell the wan to get out of config mode
 	wan_config_done();
-	config_ntw_resp((config_ntw_resp_t *) &inBuffer[1]);
+	//config_ntw_resp((config_ntw_resp_t *) &inBuffer[1]);
 
 	frame_index = 0;
 
-	vTaskDelay(xDelay);
+	vTaskDelay(xDelayTest);
+
 	led_alert_off();
 }
 
-void waitForResp()
+bool isValidMessage(void)
 {
+	uint8_t cs = 0;
+	uint8_t cs_in = 0;
+
+	for (int i = 0; i < frame_length; cs ^= inBuffer[i++])
+		;
+
+	cs_in = inBuffer[frame_length];
+
+	if (cs == cs_in)
+	{
+		return true;
+	} else
+	{
+		return false;
+	}
+}
+
+void waitForAddressResp()
+{
+
 	BaseType_t result;
 	signed char inChar;
-	bool waiting = true;
-	while (waiting)
+	uint8_t address_wait_counter = 0;
+
+	while (NWK_CONFIG)
 	{
-		result = xSerialGetChar(pxWan, &inChar, 0xFFFF);
+		address_wait_counter++;
+		result = xSerialGetChar(pxWan, &inChar, 5);
 
 		if (result == pdTRUE )
 		{
@@ -165,11 +208,63 @@ void waitForResp()
 				frame_length = inBuffer[frame_index];
 			} else if (frame_index >= frame_length)
 			{
-				frame_ready = true;
-				waiting = false;
+				if (isValidMessage())
+				{
+					break;
+				} else
+				{
+					// if the message was bad we need to retry getting the address
+					wan_config_good = false;
+				}
 			}
 
 			frame_index++;
+		}
+		// don't wait forever, restart process if we wait too long
+		if (address_wait_counter >= 2000)
+		{
+			synchronize();
+		}
+	}
+}
+
+void waitForNwkConfigResp()
+{
+	BaseType_t result;
+	signed char inChar;
+	uint8_t nwk_config_wait_counter = 0;
+	while (NWK_CONFIG)
+	{
+		nwk_config_wait_counter++;
+		result = xSerialGetChar(pxWan, &inChar, 5);
+
+		if (result == pdTRUE )
+		{
+			inBuffer[frame_index] = inChar;
+			if (frame_index == 0)
+			{
+				frame_length = inBuffer[frame_index];
+			} else if (frame_index >= frame_length)
+			{
+
+				if (isValidMessage())
+				{
+					// we got a good message so continue with the config
+					break;
+
+				} else
+				{
+					// if the message was bad we need to retry getting the address
+					wan_config_good = false;
+				}
+			}
+
+			frame_index++;
+		}
+		// don't wait forever, restart process if we wait too long
+		if (nwk_config_wait_counter >= 2000)
+		{
+			synchronize();
 		}
 	}
 }

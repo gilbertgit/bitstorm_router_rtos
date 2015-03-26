@@ -1,6 +1,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <util/delay.h>
 
 /* Scheduler include files. */
 #include "FreeRTOS.h"
@@ -19,6 +20,10 @@
 /*-----------------------------------------------------------*/
 
 int main(void) {
+
+	/////////////////////
+	_delay_ms(1500); // This is for development only. The MRKII programmer will reset the chip right after boot up.
+	/////////////////////
 
 	// PB0 is used for CTS of message
 	DDRB &= ~(1<<PB0);// SET PB0 TO INPUT
