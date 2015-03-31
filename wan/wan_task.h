@@ -13,8 +13,14 @@
 #include "queue.h"
 #include "serial.h"
 #include "led.h"
+
+#include "../ble/task_ble_dispatch.h"
 #include "wan_msg.h"
+
 extern QueueHandle_t xWANQueue;
+extern TaskHandle_t xWanTaskHandle;
+extern uint16_t xWanMonitorCounter;
+
 void task_wan_start(UBaseType_t uxPriority);
 void sendMessage(xComPortHandle hnd, btle_msg_t *msg);
 void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg);

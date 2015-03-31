@@ -14,7 +14,7 @@ static btle_msg_t *next_msg = NULL;
 static BaseType_t result;
 static btle_msg_t *msg;
 
-static portTASK_FUNCTION( task_monitor, params)
+static portTASK_FUNCTION( task_ble_monitor, params)
 {
 	for (;;)
 	{
@@ -42,6 +42,6 @@ static portTASK_FUNCTION( task_monitor, params)
 void task_ble_monitor_start(UBaseType_t uxPriority)
 {
 
-	xTaskCreate(task_monitor, "monitor", configMINIMAL_STACK_SIZE, NULL,
+	xTaskCreate(task_ble_monitor, "blemonitor", configMINIMAL_STACK_SIZE, NULL,
 			uxPriority, (TaskHandle_t *) NULL);
 }

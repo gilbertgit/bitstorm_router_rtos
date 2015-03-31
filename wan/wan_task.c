@@ -7,7 +7,6 @@
 
 #include <stdio.h>
 
-#include "../ble/task_ble_dispatch.h"
 #include "wan_task.h"
 #include "wan_msg.h"
 #include "wan_config.h"
@@ -28,10 +27,12 @@ static uint8_t inBuffer[BUFFER_SIZE];
 static uint8_t frame[80];
 static app_msg_t app_msg;
 static cmd_send_header_t cmd_header;
-static TaskHandle_t xHandlingTask;
 static unsigned long ulNotifiedValue;
+static bool queue_created = false;
 
+TaskHandle_t xWanTaskHandle;
 QueueHandle_t xWANQueue;
+uint16_t xWanMonitorCounter;
 
 enum states {
 	CONFIGURE, WAIT_FOR_DATA, WAIT_FOR_NWK_BUSY, WAIT_FOR_NWK_READY
@@ -55,8 +56,13 @@ static void synchronize();
 void waitForAddressResp();
 void waitForNwkConfigResp();
 
+static uint8_t message_counter;
+
 static portTASK_FUNCTION(task_wan, params)
 {
+	message_counter = 0;
+
+	xWanMonitorCounter = 0;
 	signed char c;
 	bool has_syncd;
 	BaseType_t result;
@@ -66,6 +72,8 @@ static portTASK_FUNCTION(task_wan, params)
 
 	for (;;)
 	{
+		xWanMonitorCounter++;
+
 		if (NWK_CONFIG) // PIN IS LOW SO CONFIGURE
 		{
 			configure_wan();
@@ -124,7 +132,7 @@ ISR(PCINT1_vect)
 	uint8_t value = PINB & (1 << PB0);
 	if (value == 0) // PIN IS LOW, SO WE SENT
 	{
-		xTaskNotifyFromISR(xHandlingTask, WAN_BUSY, eSetBits, NULL );
+		xTaskNotifyFromISR(xWanTaskHandle, WAN_BUSY, eSetBits, NULL );
 	}
 }
 
@@ -373,12 +381,15 @@ void wan_state_configure(void)
 
 void task_wan_start(UBaseType_t uxPriority)
 {
-	xWANQueue = xQueueCreate( 10, BUFFER_SIZE );
+	if (!queue_created)
+		xWANQueue = xQueueCreate( 10, BUFFER_SIZE );
+
 	if (xWANQueue == 0)
 	{
 		//led_alert_on();
 	} else
 	{
-		xTaskCreate(task_wan, "wan", configMINIMAL_STACK_SIZE, NULL, uxPriority, &xHandlingTask);
+		queue_created = true;
+		xTaskCreate(task_wan, "wan", configMINIMAL_STACK_SIZE, NULL, uxPriority, &xWanTaskHandle);
 	}
 }
