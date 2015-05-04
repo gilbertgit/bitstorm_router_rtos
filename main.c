@@ -9,6 +9,7 @@
 /* Application include files. */
 #include "task_blinky.h"
 #include "task_serial_test.h"
+#include "task_adc_test.h"
 #include "ble/task_ble_serial.h"
 #include "ble/task_ble_dispatch.h"
 #include "ble/task_ble_monitor.h"
@@ -59,11 +60,12 @@ int main(void)
 	task_ble_monitor_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
-	task_wan_start(tskIDLE_PRIORITY + 1);
+//	task_wan_start(tskIDLE_PRIORITY + 1);
+	task_adc_test_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_serial_start(tskIDLE_PRIORITY + 1);
 
-	task_monitor_start(tskIDLE_PRIORITY + 1);
+//	task_monitor_start(tskIDLE_PRIORITY + 1);
 
 	vTaskStartScheduler();
 
