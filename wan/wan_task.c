@@ -11,6 +11,7 @@
 #include "wan_msg.h"
 #include "wan_config.h"
 #include "../shared.h"
+#include "../util/router_status_msg.h"
 
 #define NWK_READY (PINB & (1 << PB0))
 #define NWK_BUSY  (~(PINB & (1 << PB0)))
@@ -25,8 +26,10 @@
 static signed char outBuffer[BUFFER_SIZE];
 static uint8_t inBuffer[BUFFER_SIZE];
 static uint8_t frame[80];
+static uint8_t status_msg_frame[50];
 static app_msg_t app_msg;
 static cmd_send_header_t cmd_header;
+static cmd_router_status_header_t cmd_status_header;
 static unsigned long ulNotifiedValue;
 static bool queue_created = false;
 
@@ -56,7 +59,7 @@ static void synchronize();
 void waitForAddressResp();
 void waitForNwkConfigResp();
 
-static uint8_t message_counter;
+static uint16_t message_counter;
 
 static portTASK_FUNCTION(task_wan, params)
 {
@@ -99,7 +102,10 @@ static portTASK_FUNCTION(task_wan, params)
 				result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
 				if (result == pdTRUE )
 				{
-					sendMessage(pxWan, (btle_msg_t *) outBuffer);
+					if (outBuffer[0] == 8)
+						send_router_status_msg(pxWan, (router_status_msg_t*) outBuffer);
+					else
+						sendMessage(pxWan, (btle_msg_t *) outBuffer);
 
 					result = xTaskNotifyWait(pdFALSE, /* Don't clear bits on entry. */
 					0xffffffff, /* Clear all bits on exit. */
@@ -277,6 +283,40 @@ void waitForNwkConfigResp()
 	}
 }
 
+void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
+{
+	msg->router_address = shared.mac;
+	msg->msg_sent_count = message_counter;
+	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_status_msg_t) + 1;
+
+	cmd_header.command = CMD_SEND;
+	cmd_header.pan_id = 0x1973;
+	cmd_header.short_id = 0x00;
+	cmd_header.message_length = sizeof(router_status_msg_t);
+
+	int frame_index = 1;
+	// header
+	for (int i = 0; i < sizeof(cmd_header); i++)
+	{
+		status_msg_frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
+	}
+	// message
+	for (int i = 0; i < sizeof(router_status_msg_t); i++)
+	{
+		status_msg_frame[frame_index++] = ((uint8_t *) (msg))[i];
+	}
+	// checksum
+	uint8_t cs = 0;
+	for (int i = 0; i < frame_index; cs ^= status_msg_frame[i++])
+		;
+	status_msg_frame[frame_index++] = cs;
+
+	for (int i = 0; i < frame_index;)
+	{
+		xSerialPutChar(hnd, status_msg_frame[i++], 5);
+	}
+}
+
 void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 {
 
@@ -325,6 +365,8 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 		//xSerialPutChar(pxWan, 'X', 5); i++;
 	}
 
+	// keep track of how many messages we have sent out
+	message_counter++;
 //	hwm = uxTaskGetStackHighWaterMark(NULL);
 //	sprintf((char*)frame, "A:%d\r\n", hwm);
 //	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));

@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 typedef struct {
+	uint8_t type;
 	uint8_t rssi;
 	uint64_t mac;
 	uint16_t batt;
@@ -20,7 +21,6 @@ typedef struct {
 	void *next;
 	uint32_t last_sent;
 	uint8_t count;
-	uint8_t type;
 
 } btle_msg_t;
 

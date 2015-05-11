@@ -17,6 +17,7 @@
 #include "util/clock.h"
 #include "ramdisk/ramdisk.h"
 #include "util/task_monitor.h"
+#include "util/router_status_task.h"
 
 /*-----------------------------------------------------------*/
 
@@ -32,13 +33,13 @@ void reset(void)
     // after a system reset (except a power-on condition), using the fastest
     // prescaler value (approximately 15 ms). It is therefore required
     // to turn off the watchdog early during program startup.
+    resetReason = MCUSR;
     MCUSR = 0; // clear reset flags
     wdt_disable();
 }
 
 int main(void)
 {
-
 	/////////////////////
 	_delay_ms(1500); // This is for development only. The MRKII programmer will reset the chip right after boot up.
 	/////////////////////
@@ -51,21 +52,23 @@ int main(void)
 
 	// PB1 is used for configure
 	DDRB &= ~(1 << PB1); //INPUT
-	PORTB |= (1 << PB1);
+	//PORTB |= (1 << PB1);
 	clock_init();
 	ramdisk_init();
 	sei();
 
 	task_blinky_start((tskIDLE_PRIORITY + 1));
-	task_ble_monitor_start(tskIDLE_PRIORITY + 1);
+	//task_ble_monitor_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
-//	task_wan_start(tskIDLE_PRIORITY + 1);
-	task_adc_test_start(tskIDLE_PRIORITY + 1);
+	task_wan_start(tskIDLE_PRIORITY + 1);
+	//task_adc_test_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_serial_start(tskIDLE_PRIORITY + 1);
 
-//	task_monitor_start(tskIDLE_PRIORITY + 1);
+	task_monitor_start(tskIDLE_PRIORITY + 1);
+
+	task_router_status_start(tskIDLE_PRIORITY +1);
 
 	vTaskStartScheduler();
 
