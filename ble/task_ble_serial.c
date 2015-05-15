@@ -16,9 +16,11 @@
 
 static signed char inBuffer[BUFFER_MAX + 1];
 static int bufferIndex;
+static uint8_t command = 0;
 
 static portTASK_FUNCTION(task_ble, params)
 {
+
 	BaseType_t result;
 	signed char inChar;
 	xComPortHandle pxIn;
@@ -41,16 +43,39 @@ static portTASK_FUNCTION(task_ble, params)
 
 		if (result == pdTRUE )
 		{
-			if (inChar == '\n')
+
+			if (inChar == 'P')
 			{
-				//led_alert_off();
-				inBuffer[bufferIndex] = 0;
-				result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
-				//serial_putsz(pxOut, "[RCV] ");
-				bufferIndex = 0;
-				if (result != pdTRUE )
+				// provision
+				command = 1;
+				inBuffer[bufferIndex++] = inChar;
+			} else if (inChar == '*')
+			{
+				// regular broadcast
+				command = 2;
+				inBuffer[bufferIndex++] = inChar;
+			} else if (inChar == '\n')
+			{
+				// we have a complete message
+				// check what type of message we have
+				switch (command)
 				{
-					//led_alert_on();
+				case 1:
+					result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
+					bufferIndex = 0;
+					command = 0;
+
+					break;
+				case 2:
+						result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
+
+					bufferIndex = 0;
+					if (result != pdTRUE )
+					{
+						//led_alert_on();
+					}
+					command = 0;
+					break;
 				}
 			} else
 			{

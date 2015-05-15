@@ -29,7 +29,6 @@ static uint8_t frame[80];
 static uint8_t status_msg_frame[50];
 static app_msg_t app_msg;
 static cmd_send_header_t cmd_header;
-static cmd_router_status_header_t cmd_status_header;
 static unsigned long ulNotifiedValue;
 static bool queue_created = false;
 
@@ -334,7 +333,7 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 #else
 	cmd_header.command = CMD_SEND;
 #endif
-	cmd_header.pan_id = 0x1973;
+	cmd_header.pan_id = router_config.pan_id;
 	cmd_header.short_id = 0x00;
 	cmd_header.message_length = sizeof(app_msg);
 
@@ -378,12 +377,12 @@ void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg)
 	msg->messageType = 0x01;
 	msg->nodeType = 0x01;
 	msg->extAddr = btle_msg->mac;
-	msg->shortAddr = shared.mac & 0x0000FFFF;
-	msg->routerAddr = shared.mac;
+	msg->shortAddr = router_config.mac & 0x0000FFFF;
+	msg->routerAddr = router_config.mac;
 	//softVersion;
 	//channelMask;
-	msg->panId = 0x1973; // need to set pan in zigbit
-	msg->workingChannel = 0x16;
+	msg->panId = router_config.pan_id; // need to set pan in zigbit
+	msg->workingChannel = router_config.channel;
 	msg->parentShortAddr = 1;
 	msg->lqi = 0;
 

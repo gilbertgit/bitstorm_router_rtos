@@ -8,11 +8,15 @@
 #ifndef BLE_SERIAL_H_
 #define BLE_SERIAL_H_
 
+#include <stdbool.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
 #include "serial.h"
 #include "led.h"
+
+#include "../shared.h"
 
 extern QueueHandle_t xPacketQueue;
 

@@ -61,9 +61,9 @@ void wan_config_network()
 	cmd_config_ntw_t config_ntw;
 
 	config_ntw.command = CMD_CONFIG_NETWORK;
-	config_ntw.pan_id = 0x1973;
-	config_ntw.short_id = shared.mac & 0x0000FFFF;
-	config_ntw.channel = 0x16;
+	config_ntw.pan_id = router_config.pan_id;
+	config_ntw.short_id = router_config.mac & 0x0000FFFF;
+	config_ntw.channel = router_config.channel;
 
 	uint8_t frame[10];
 	frame[0] = sizeof(config_ntw) + 1; // size of message
@@ -132,7 +132,7 @@ bool wan_config_received(uint8_t * buff)
 
 void config_mac_resp(mac_resp_t * resp)
 {
-	shared.mac = resp->wan_device_address;
+	//shared.mac = resp->wan_device_address;
 	state = CONFIG_NTW_REQ;
 }
 
