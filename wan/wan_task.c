@@ -8,6 +8,8 @@
 #include <stdio.h>
 
 #include "wan_task.h"
+#include "wan.h"
+//#include "spi.h"
 #include "wan_msg.h"
 #include "wan_config.h"
 #include "../shared.h"
@@ -32,6 +34,7 @@ static cmd_send_header_t cmd_header;
 static unsigned long ulNotifiedValue;
 static bool queue_created = false;
 
+//TaskHandle_t xSPITaskHandle;
 TaskHandle_t xWanTaskHandle;
 QueueHandle_t xWANQueue;
 uint16_t xWanMonitorCounter;
@@ -62,6 +65,23 @@ static uint16_t message_counter;
 
 static portTASK_FUNCTION(task_wan, params)
 {
+
+//	///////////////////////////////////////////
+//	vTaskDelay(xDelayTest3); // start this 5 sec after start
+//
+//	send_spi_msg = 0x00; // stop trying to send via spi
+//	SPCR &= ~(1 << SPE);
+//	SPCR &= ~(1 << MSTR); //spi off
+//
+//	kill_wan();
+//
+//	vTaskDelay(xDelayTest2); // wait a 2sec for everything to go dead on the wan
+//
+//	init_wan();
+//	init_spi_master();
+
+//	///////////////////////////////////////////
+
 	message_counter = 0;
 
 	xWanMonitorCounter = 0;
@@ -144,13 +164,16 @@ ISR(PCINT1_vect)
 void configure_wan()
 {
 	wan_config_retry++;
-	led_alert_on();
+	//led_alert_on();
 
+	// We don't need this because we are getting MAC from the BLE
+	/////////////////////////////////////////////////////////////////////
 	// get mac address so we can configure the wan
-	wan_get_device_address(); // send request for mac
-	waitForAddressResp(); // wait for mac
-	config_mac_resp((mac_resp_t *) &inBuffer[1]); //save the mac
-	frame_index = 0; // reset the frame
+//	wan_get_device_address(); // send request for mac
+//	waitForAddressResp(); // wait for mac
+//	config_mac_resp((mac_resp_t *) &inBuffer[1]); //save the mac
+//	frame_index = 0; // reset the frame
+	/////////////////////////////////////////////////////////////////////
 
 	// now that we have the mac from the wan, send entire nwk config
 	wan_config_network();
@@ -262,6 +285,7 @@ void waitForNwkConfigResp()
 
 				if (isValidMessage())
 				{
+					led_alert_on();
 					// we got a good message so continue with the config
 					break;
 
@@ -284,13 +308,13 @@ void waitForNwkConfigResp()
 
 void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
 {
-	msg->router_address = shared.mac;
+	msg->router_address = router_config.mac;
 	msg->msg_sent_count = message_counter;
 	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_status_msg_t) + 1;
 
 	cmd_header.command = CMD_SEND;
-	cmd_header.pan_id = 0x1973;
-	cmd_header.short_id = 0x00;
+	cmd_header.pan_id = router_config.pan_id;
+	cmd_header.short_id = router_config.mac & 0x0000FFFF;;
 	cmd_header.message_length = sizeof(router_status_msg_t);
 
 	int frame_index = 1;
@@ -354,14 +378,10 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 		;
 	frame[frame_index++] = cs;
 
-//	hwm = uxTaskGetStackHighWaterMark(NULL);
-//	sprintf((char*)frame, "B:%d ", hwm);
-//	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
-
+	// send bytes
 	for (int i = 0; i < frame_index;)
 	{
 		xSerialPutChar(hnd, frame[i++], 5);
-		//xSerialPutChar(pxWan, 'X', 5); i++;
 	}
 
 	// keep track of how many messages we have sent out

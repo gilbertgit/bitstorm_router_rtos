@@ -28,6 +28,8 @@ enum states {
 };
 uint8_t state = SEND_MAC_REQ;
 
+const static TickType_t xDelay = 20 / portTICK_PERIOD_MS;
+
 void wan_get_device_address()
 {
 	xComPortHandle pxOut;
@@ -108,6 +110,7 @@ void wan_config_done()
 		;
 	frame[frame_index++] = cs;
 
+	 // start transmission
 	for (int i = 0; i < frame_index;)
 	{
 		xSerialPutChar(pxOut, frame[i++], 5);
