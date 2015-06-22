@@ -9,18 +9,10 @@
 
 #include "wan_task.h"
 #include "wan.h"
-//#include "spi.h"
 #include "wan_msg.h"
 #include "wan_config.h"
 #include "../shared.h"
 #include "../util/router_status_msg.h"
-
-#define NWK_READY (PINB & (1 << PB0))
-#define NWK_BUSY  (~(PINB & (1 << PB0)))
-
-#define NWK_CONFIG !(PINB & (1 << PB1))
-
-#define WAN_BUSY 0x01
 
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
@@ -34,20 +26,26 @@ static cmd_send_header_t cmd_header;
 static unsigned long ulNotifiedValue;
 static bool queue_created = false;
 
-//TaskHandle_t xSPITaskHandle;
 TaskHandle_t xWanTaskHandle;
+TaskHandle_t xWanTaskHandle_rx;
+
 QueueHandle_t xWANQueue;
 uint16_t xWanMonitorCounter;
 
 enum states {
-	CONFIGURE, WAIT_FOR_DATA, WAIT_FOR_NWK_BUSY, WAIT_FOR_NWK_READY
+	CONFIGURE, WAIT_FOR_DATA, WAIT_FOR_NWK_BUSY, WAIT_FOR_NWK_READY, AWAITING_DATA, RECEIVED_DATA
+};
+enum comands {
+	CONFIG_RESP = 0x03
 };
 static uint8_t state = CONFIGURE;
+static uint8_t rx_state = AWAITING_DATA;
+
 static int frame_index = 0;
 static int frame_length = 0;
 bool frame_ready = false;
 
-static bool wan_config_good = true;
+static bool wan_config_good = false;
 static int wan_config_retry = 0;
 
 const static TickType_t xDelayTest = 50 / portTICK_PERIOD_MS;
@@ -55,38 +53,17 @@ const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 const static TickType_t xDelaySend = 500 / portTICK_PERIOD_MS;
 
 static xComPortHandle pxWan;
-//static UBaseType_t hwm = 0;
-
-static void synchronize();
-void waitForAddressResp();
-void waitForNwkConfigResp();
 
 static uint16_t message_counter;
+uint8_t cobs_buffer[60];
+uint8_t decoded_msg[60];
 
 static portTASK_FUNCTION(task_wan, params)
 {
 
-//	///////////////////////////////////////////
-//	vTaskDelay(xDelayTest3); // start this 5 sec after start
-//
-//	send_spi_msg = 0x00; // stop trying to send via spi
-//	SPCR &= ~(1 << SPE);
-//	SPCR &= ~(1 << MSTR); //spi off
-//
-//	kill_wan();
-//
-//	vTaskDelay(xDelayTest2); // wait a 2sec for everything to go dead on the wan
-//
-//	init_wan();
-//	init_spi_master();
-
-//	///////////////////////////////////////////
-
 	message_counter = 0;
 
 	xWanMonitorCounter = 0;
-	signed char c;
-	bool has_syncd;
 	BaseType_t result;
 
 	pxWan = xSerialPortInitMinimal(0, 38400, 50);
@@ -98,24 +75,10 @@ static portTASK_FUNCTION(task_wan, params)
 
 		if (NWK_CONFIG) // PIN IS LOW SO CONFIGURE
 		{
-			configure_wan();
+			if (router_config.magic == 2)
+				configure_wan();
 		} else
 		{
-			c = 0;
-			has_syncd = false;
-			while (xSerialGetChar(pxWan, &c, 0))
-			{
-				if (c == 'T' || c == 'E' || c == 'F' || c == 'G')
-				{
-					if (!has_syncd)
-					{
-						synchronize();
-						has_syncd = true;
-					}
-
-				}
-			}
-
 			if (NWK_READY)
 			{
 				result = xQueueReceive( xWANQueue, outBuffer, QUEUE_TICKS);
@@ -140,7 +103,73 @@ static portTASK_FUNCTION(task_wan, params)
 				}
 			}
 		}
+	}
+}
 
+static portTASK_FUNCTION(task_wan_rx, params)
+{
+	signed char c;
+	bool has_syncd;
+	uint8_t index = 0;
+	uint8_t cmd;
+	for (;;)
+	{
+		c = 0;
+		has_syncd = false;
+		while (xSerialGetChar(pxWan, &c, 0))
+		{
+			// end of cobs message
+			if (c == 0x00)
+			{
+
+				decode_cobs(cobs_buffer, sizeof(cobs_buffer), decoded_msg);
+				index = 0;
+				rx_state = RECEIVED_DATA;
+
+			} else
+			{
+				cobs_buffer[index++] = c;
+			}
+
+			if (rx_state == RECEIVED_DATA)
+			{
+
+				cmd = decoded_msg[0];
+				//xSerialPutChar(pxWan, cmd, 5);
+				switch (cmd)
+				{
+				case 'T':
+				case 'E':
+				case 'F':
+				case 'G':
+					if (!has_syncd)
+					{
+						synchronize();
+						has_syncd = true;
+					}
+					break;
+				case CONFIG_RESP:
+				    xTaskNotifyGive(xWanTaskHandle);
+					break;
+				}
+				state = AWAITING_DATA;
+
+			}
+		}
+
+	}
+}
+
+void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *dst)
+{
+	const unsigned char *end = ptr + length;
+	while (ptr < end)
+	{
+		int i, code = *ptr++;
+		for (i = 1; i < code; i++)
+			*dst++ = *ptr++;
+		if (code < 0xFF)
+			*dst++ = 0;
 	}
 }
 
@@ -164,25 +193,28 @@ ISR(PCINT1_vect)
 void configure_wan()
 {
 	wan_config_retry++;
-	//led_alert_on();
-
-	// We don't need this because we are getting MAC from the BLE
-	/////////////////////////////////////////////////////////////////////
-	// get mac address so we can configure the wan
-//	wan_get_device_address(); // send request for mac
-//	waitForAddressResp(); // wait for mac
-//	config_mac_resp((mac_resp_t *) &inBuffer[1]); //save the mac
-//	frame_index = 0; // reset the frame
-	/////////////////////////////////////////////////////////////////////
+	uint32_t ulNotificationValue;
+	const TickType_t xMaxBlockTime = pdMS_TO_TICKS( 200 );
 
 	// now that we have the mac from the wan, send entire nwk config
 	wan_config_network();
-	waitForNwkConfigResp();
-	frame_index = 0;
 
-	// make sure everything went well with the config, if not, retry
-	if (!wan_config_good)
+	ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
+
+	if (ulNotificationValue == 1)
 	{
+		/* The transmission ended as expected. */
+		frame_index = 0;
+		wan_config_done();
+
+		frame_index = 0;
+
+		vTaskDelay(xDelayTest);
+
+		led_alert_off();
+	} else
+	{
+		/* The call to ulTaskNotifyTake() timed out. */
 		configure_wan();
 		if (wan_config_retry == 3)
 		{
@@ -192,17 +224,30 @@ void configure_wan()
 		}
 	}
 
+	//waitForNwkConfigResp2();
+
+	// make sure everything went well with the config, if not, retry
+//	if (!wan_config_good)
+//	{
+//		configure_wan();
+//		if (wan_config_retry == 3)
+//		{
+//			synchronize();
+//			vTaskDelay(xDelay);
+//			configure_wan();
+//		}
+//	}
+
 	// after we get a response that the nwk has been configured,
 	// we send a message saying we are done with all configurations
 	// this will tell the wan to get out of config mode
-	wan_config_done();
-	//config_ntw_resp((config_ntw_resp_t *) &inBuffer[1]);
-
-	frame_index = 0;
-
-	vTaskDelay(xDelayTest);
-
-	led_alert_off();
+//	wan_config_done();
+//
+//	frame_index = 0;
+//
+//	vTaskDelay(xDelayTest);
+//
+//	led_alert_off();
 }
 
 bool isValidMessage(void)
@@ -223,47 +268,25 @@ bool isValidMessage(void)
 		return false;
 	}
 }
-
-void waitForAddressResp()
+void waitForNwkConfigResp2()
 {
-
-	BaseType_t result;
-	signed char inChar;
-	uint8_t address_wait_counter = 0;
+	uint8_t nwk_config_wait_counter = 0;
 
 	while (NWK_CONFIG)
 	{
-		address_wait_counter++;
-		result = xSerialGetChar(pxWan, &inChar, 5);
 
-		if (result == pdTRUE )
-		{
-			inBuffer[frame_index] = inChar;
-			if (frame_index == 0)
-			{
-				frame_length = inBuffer[frame_index];
-			} else if (frame_index >= frame_length)
-			{
-				if (isValidMessage())
-				{
-					break;
-				} else
-				{
-					// if the message was bad we need to retry getting the address
-					wan_config_good = false;
-				}
-			}
+		if (wan_config_good == true)
+			break;
 
-			frame_index++;
-		}
+		nwk_config_wait_counter++;
 		// don't wait forever, restart process if we wait too long
-		if (address_wait_counter >= 2000)
+		if (nwk_config_wait_counter >= 2000)
 		{
+
 			synchronize();
 		}
 	}
 }
-
 void waitForNwkConfigResp()
 {
 	BaseType_t result;
@@ -314,7 +337,8 @@ void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
 
 	cmd_header.command = CMD_SEND;
 	cmd_header.pan_id = router_config.pan_id;
-	cmd_header.short_id = router_config.mac & 0x0000FFFF;;
+	cmd_header.short_id = router_config.mac & 0x0000FFFF;
+	;
 	cmd_header.message_length = sizeof(router_status_msg_t);
 
 	int frame_index = 1;
@@ -452,5 +476,7 @@ void task_wan_start(UBaseType_t uxPriority)
 	{
 		queue_created = true;
 		xTaskCreate(task_wan, "wan", configMINIMAL_STACK_SIZE, NULL, uxPriority, &xWanTaskHandle);
+		xTaskCreate(task_wan_rx, "wan_rx", configMINIMAL_STACK_SIZE, NULL, uxPriority, &xWanTaskHandle_rx);
+
 	}
 }

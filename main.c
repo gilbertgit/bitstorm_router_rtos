@@ -41,6 +41,14 @@ void reset(void)
 	wdt_disable();
 }
 
+void init_wd()
+{
+	wdt_disable();
+	WDTCSR |= (1 << WDCE) | (1 << WDE); // reset mode
+	WDTCSR = (1 << WDE) | (1 << WDP2) | (1 << WDP0); // 64k Timeout
+	wdt_enable(WDTO_2S);
+}
+
 int main(void)
 {
 	/////////////////////
@@ -52,16 +60,18 @@ int main(void)
 	init_wan();
 
 	// Enable BLE
+#ifdef NEW_ROUTER
 	DDRC |= (1 << PC7); // OUTPUT
 	PORTC &= ~(1 << PC7); // LOW
+#endif
 	///////////////////////////////////////////
 
+	init_wd();
 	clock_init();
 	ramdisk_init();
 	sei();
 
 	task_blinky_start((tskIDLE_PRIORITY + 1));
-	//task_spi_start(tskIDLE_PRIORITY + 1);
 	//task_ble_monitor_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
@@ -71,7 +81,7 @@ int main(void)
 
 	task_monitor_start(tskIDLE_PRIORITY + 1);
 
-	task_router_status_start(tskIDLE_PRIORITY +1);
+	task_router_status_start(tskIDLE_PRIORITY + 1);
 
 	vTaskStartScheduler();
 

@@ -10,7 +10,7 @@
 
 static xComPortHandle pxAdc;
 
-static char buffer[40];
+//static char buffer[40];
 
 const static TickType_t xDelay = 1000 / portTICK_PERIOD_MS;
 
@@ -19,7 +19,7 @@ TaskHandle_t xADCTaskHandle;
 static portTASK_FUNCTION(task_adc, params)
 {
 	uint16_t result;
-	uint32_t milliVolts;
+	//uint32_t milliVolts;
 	pxAdc = xSerialPortInitMinimal(0, 38400, 50);
 
 	// Setup ADC read on PA0 - V_CHG

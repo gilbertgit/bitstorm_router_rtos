@@ -7,6 +7,7 @@
 
 #include "task_monitor.h"
 #include "../wan/wan_task.h"
+#include "wan.h"
 
 #define COUNTER_MAX 5
 
@@ -23,6 +24,7 @@ static portTASK_FUNCTION(task_monitor, params)
 {
 	for (;;)
 	{
+		wdt_reset();
 		vTaskDelay(xDelay); // do the check every half second
 		wan_task_monitor();
 	}
@@ -39,7 +41,9 @@ void wan_task_monitor()
 			led_alert_on();
 			vTaskDelay(xDelay);
 
-			// we got problems, REBOOT THE TASK
+			// we got problems, REBOOT
+			kill_wan();
+
 			reboot_1284();
 		}
 	}
@@ -49,14 +53,7 @@ void wan_task_monitor()
 
 void reboot_1284()
 {
-	// Setup watchdog
-
-	wdt_disable();
-	WDTCSR |= (1 << WDCE) | (1 << WDE); // reset mode
-	WDTCSR = (1<<WDE) | (1 << WDP2) | (1 << WDP0); // 64k Timeout
-	wdt_enable(WDTO_15MS);
 	while(1);
-
 }
 
 void task_monitor_start(UBaseType_t uxPriority)

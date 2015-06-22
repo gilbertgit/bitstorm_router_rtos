@@ -27,9 +27,13 @@ void init_wan(void)
 	//PB1 is used for configure
 	WAN_DDR &= ~WAN_CONFIG_bv; //INPUT
 
+#ifdef NEW_ROUTER
 	// Enable WAN - Turn the ZB on
 	WAN_DDR |= WAN_EN_bv; // OUTPUT
 	PORTB &= ~WAN_EN_bv; // LOW
+#endif
+
+
 }
 
 void kill_wan(void)
