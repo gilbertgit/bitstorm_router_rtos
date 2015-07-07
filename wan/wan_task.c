@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <avr/eeprom.h>
 
 #include "wan_task.h"
 #include "wan.h"
@@ -13,6 +14,7 @@
 #include "wan_config.h"
 #include "../shared.h"
 #include "../util/router_status_msg.h"
+#include "task_wan_dispatch.h"
 
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
@@ -32,12 +34,13 @@ TaskHandle_t xWanTaskHandle_rx;
 QueueHandle_t xWANQueue;
 uint16_t xWanMonitorCounter;
 
+void sendtestdata();
+UBaseType_t hwm;
+
 enum states {
 	CONFIGURE, WAIT_FOR_DATA, WAIT_FOR_NWK_BUSY, WAIT_FOR_NWK_READY, AWAITING_DATA, RECEIVED_DATA
 };
-enum comands {
-	CONFIG_RESP = 0x03
-};
+
 static uint8_t state = CONFIGURE;
 static uint8_t rx_state = AWAITING_DATA;
 
@@ -57,6 +60,11 @@ static xComPortHandle pxWan;
 static uint16_t message_counter;
 uint8_t cobs_buffer[60];
 uint8_t decoded_msg[60];
+
+changeset_t changeset;
+
+// Create variable in EEPROM with initial values
+//changeset_t EEMEM changeset_temp = { 12345, 1234, 1 };
 
 static portTASK_FUNCTION(task_wan, params)
 {
@@ -87,7 +95,7 @@ static portTASK_FUNCTION(task_wan, params)
 					if (outBuffer[0] == 8)
 						send_router_status_msg(pxWan, (router_status_msg_t*) outBuffer);
 					else
-						sendMessage(pxWan, (btle_msg_t *) outBuffer);
+						sendMessage(pxWan, (btle_msg_t *) outBuffer);//sendtestdata();
 
 					result = xTaskNotifyWait(pdFALSE, /* Don't clear bits on entry. */
 					0xffffffff, /* Clear all bits on exit. */
@@ -109,19 +117,16 @@ static portTASK_FUNCTION(task_wan, params)
 static portTASK_FUNCTION(task_wan_rx, params)
 {
 	signed char c;
-	bool has_syncd;
 	uint8_t index = 0;
-	uint8_t cmd;
+	BaseType_t result;
 	for (;;)
 	{
 		c = 0;
-		has_syncd = false;
 		while (xSerialGetChar(pxWan, &c, 0))
 		{
 			// end of cobs message
 			if (c == 0x00)
 			{
-
 				decode_cobs(cobs_buffer, sizeof(cobs_buffer), decoded_msg);
 				index = 0;
 				rx_state = RECEIVED_DATA;
@@ -133,31 +138,44 @@ static portTASK_FUNCTION(task_wan_rx, params)
 
 			if (rx_state == RECEIVED_DATA)
 			{
-
-				cmd = decoded_msg[0];
-				//xSerialPutChar(pxWan, cmd, 5);
-				switch (cmd)
-				{
-				case 'T':
-				case 'E':
-				case 'F':
-				case 'G':
-					if (!has_syncd)
-					{
-						synchronize();
-						has_syncd = true;
-					}
-					break;
-				case CONFIG_RESP:
-				    xTaskNotifyGive(xWanTaskHandle);
-					break;
-				}
+				result = xQueueSendToBack( xWanDispatchQueue, decoded_msg, 0);
 				state = AWAITING_DATA;
-
 			}
 		}
-
 	}
+}
+
+void sendtestdata()
+{
+	uint8_t test_frame[10];
+	test_frame[0] = 0x09;
+	test_frame[1] = 0x09;
+	test_frame[2] = 0x89;
+	test_frame[3] = 0x19;
+	test_frame[4] = 0x45;
+	test_frame[5] = 0xDD;
+	test_frame[6] = 0x02;
+	test_frame[7] = 0x09;
+	test_frame[8] = 0xAA;
+		// message
+
+		// checksum
+		uint8_t cs = 0;
+		for (int i = 0; i < 9; cs ^= test_frame[i++])
+			;
+		test_frame[9] = cs;
+
+		for (int i = 0; i < 10;)
+		{
+			xSerialPutChar(pxWan, test_frame[i++], 5);
+		}
+}
+
+void update_changeset()
+{
+	led_alert_toggle();
+//	changeset.num = data[1];
+	//eeprom_update_block(&changeset, &changeset_temp, sizeof(changeset_t));
 }
 
 void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *dst)
@@ -173,7 +191,7 @@ void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *
 	}
 }
 
-static void synchronize()
+void synchronize()
 {
 	while (NWK_READY)
 	{
@@ -199,6 +217,7 @@ void configure_wan()
 	// now that we have the mac from the wan, send entire nwk config
 	wan_config_network();
 
+	// wait for a response
 	ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
 
 	if (ulNotificationValue == 1)
@@ -223,31 +242,6 @@ void configure_wan()
 			configure_wan();
 		}
 	}
-
-	//waitForNwkConfigResp2();
-
-	// make sure everything went well with the config, if not, retry
-//	if (!wan_config_good)
-//	{
-//		configure_wan();
-//		if (wan_config_retry == 3)
-//		{
-//			synchronize();
-//			vTaskDelay(xDelay);
-//			configure_wan();
-//		}
-//	}
-
-	// after we get a response that the nwk has been configured,
-	// we send a message saying we are done with all configurations
-	// this will tell the wan to get out of config mode
-//	wan_config_done();
-//
-//	frame_index = 0;
-//
-//	vTaskDelay(xDelayTest);
-//
-//	led_alert_off();
 }
 
 bool isValidMessage(void)
@@ -333,6 +327,7 @@ void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
 {
 	msg->router_address = router_config.mac;
 	msg->msg_sent_count = message_counter;
+	msg->changeset_id = 0x0000;
 	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_status_msg_t) + 1;
 
 	cmd_header.command = CMD_SEND;

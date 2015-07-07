@@ -25,4 +25,11 @@ typedef struct
 extern shared_t shared;
 extern router_config_t router_config;
 
+typedef struct
+{
+	uint16_t num;
+}changeset_t;
+
+extern changeset_t changeset;
+
 #endif /* SHARED_H_ */

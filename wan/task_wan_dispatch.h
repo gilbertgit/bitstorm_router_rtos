@@ -1,0 +1,16 @@
+/*
+ * task_wan_dispatch.h
+ *
+ *  Created on: Jul 6, 2015
+ *      Author: titan
+ */
+
+#ifndef TASK_WAN_DISPATCH_H_
+#define TASK_WAN_DISPATCH_H_
+
+extern QueueHandle_t xWanDispatchQueue;
+
+void synchronize_zigbit();
+
+void task_wan_dispatch_start(UBaseType_t uxPriority);
+#endif /* TASK_WAN_DISPATCH_H_ */

@@ -14,6 +14,7 @@ typedef struct router_status_msg_t {
 	uint16_t msg_sent_count;
 	uint8_t reset_source;
 	uint16_t adc;
+	uint16_t changeset_id;
 }router_status_msg_t;
 
 typedef struct {

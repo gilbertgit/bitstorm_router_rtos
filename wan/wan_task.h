@@ -34,8 +34,10 @@ void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg);
 void wan_state_configure(void);
 void waitForResp();
 void configure_wan();
-static void synchronize();
+void synchronize();
 void waitForNwkConfigResp();
 void waitForNwkConfigResp2();
 void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *dst);
+void update_changeset();
+
 #endif /* TASK_WAN_H_ */
