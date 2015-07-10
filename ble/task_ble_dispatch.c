@@ -15,6 +15,7 @@
 #include "../wan/wan_config.h"
 #include "../ramdisk/ramdisk.h"
 #include "../util/clock.h"
+#include "../shared.h"
 
 char HEX_DIGITS[] = "0123456789abcdef";
 
@@ -31,6 +32,7 @@ static btle_msg_t msg;
 
 QueueHandle_t xDispatchQueue;
 router_config_t router_config;
+//changeset_t cs_v;
 
 // Create variable in EEPROM with initial values
 router_config_t EEMEM router_config_temp = { 12345678, 1234, 1 };
@@ -40,6 +42,7 @@ static portTASK_FUNCTION(task_dispatch, params)
 //	xComPortHandle pxOut;
 //	pxOut = xSerialPortInitMinimal(0, 38400, 10);
 	read_config();
+	read_changeset();
 	for (;;)
 	{
 		result = xQueueReceive( xDispatchQueue, outBuffer, QUEUE_TICKS);
@@ -65,6 +68,11 @@ static portTASK_FUNCTION(task_dispatch, params)
 				{
 					// Make decisions on the messages from the ble
 					btle_handle_le_packet((char *) outBuffer, &msg);
+
+					// TODO: check if the tag that sent the message has the correct changeset
+					// if not correct, put in ble queue that changeset needs to be updated for this tag
+					if(msg.cs_id == changeset.id)
+						led_alert_on();
 
 #ifdef BYPASS_MODE
 					msg.type = MSG_TYPE_NORM;
@@ -145,18 +153,18 @@ bool btle_handle_le_packet(char * buffer, btle_msg_t * btle_msg)
 
 	uint8_t * num;
 	uint8_t msb, lsb, ck, ckx;
-	uint8_t rssi;
+	uint8_t rssi, cs_id;
 	uint16_t batt, temp;
 	uint64_t mac;
 	int i;
 
 // Validate checksum in bytes 27-28
 // Just an XOR of bytes 0-26
-	msb = btle_parse_nybble(buffer[27]);
-	lsb = btle_parse_nybble(buffer[28]);
+	msb = btle_parse_nybble(buffer[30]);
+	lsb = btle_parse_nybble(buffer[31]);
 	ck = (msb << 4) | lsb;
 	ckx = 0;
-	for (i = 0; i <= 26; i++)
+	for (i = 0; i <= 29; i++)
 		ckx ^= buffer[i];
 	if (ck != ckx)
 	{
@@ -213,10 +221,17 @@ bool btle_handle_le_packet(char * buffer, btle_msg_t * btle_msg)
 	lsb = btle_parse_nybble(buffer[25]);
 	num[1] = (msb << 4) | lsb;
 
+	// TODO: parse changeset from ble msg
+	// changeset id
+	msb = btle_parse_nybble(buffer[27]);
+	lsb = btle_parse_nybble(buffer[28]);
+	cs_id = (msb << 4) | lsb;
+
 	btle_msg->rssi = rssi;
 	btle_msg->mac = mac;
 	btle_msg->batt = batt;
 	btle_msg->temp = temp;
+	btle_msg->cs_id = cs_id;
 
 	return true;
 

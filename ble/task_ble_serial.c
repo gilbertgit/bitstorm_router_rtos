@@ -15,12 +15,18 @@
 #define QUEUE_TICKS		10
 
 static signed char inBuffer[BUFFER_MAX + 1];
+static signed char outBuffer[BUFFER_SIZE];
+
 static int bufferIndex;
 static uint8_t command = 0;
+static BaseType_t result;
+
+bool ble_queue_created = false;
+
+QueueHandle_t xBleQueue;
 
 static portTASK_FUNCTION(task_ble, params)
 {
-
 	BaseType_t result;
 	signed char inChar;
 	xComPortHandle pxIn;
@@ -64,10 +70,9 @@ static portTASK_FUNCTION(task_ble, params)
 					result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
 					bufferIndex = 0;
 					command = 0;
-
 					break;
 				case 2:
-						result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
+					result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
 
 					bufferIndex = 0;
 					if (result != pdTRUE )
@@ -90,9 +95,33 @@ static portTASK_FUNCTION(task_ble, params)
 	}
 }
 
+static portTASK_FUNCTION(task_ble_tx, params)
+{
+	for (;;)
+	{
+		result = xQueueReceive( xBleQueue, outBuffer, QUEUE_TICKS);
+		if (result == pdTRUE )
+		{
+			if(outBuffer[0] == 0x09)
+				led_alert_on();
+			// When we get data here, the router needs to connect to tag and send data
+		}
+	}
+}
+
 void task_ble_serial_start(UBaseType_t uxPriority)
 {
+	if (!ble_queue_created)
+		xBleQueue = xQueueCreate( 10, BUFFER_SIZE );
 
-	xTaskCreate(task_ble, "monitor", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
+	if (xBleQueue == 0)
+	{
+		led_alert_on();
+	} else
+	{
+		ble_queue_created = true;
+		xTaskCreate(task_ble, "ble", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
+		xTaskCreate(task_ble_tx, "ble_tx", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
 
+	}
 }

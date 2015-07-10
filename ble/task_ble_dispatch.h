@@ -31,6 +31,7 @@ uint8_t btle_parse_nybble(char c);
 
 void read_config();
 void write_config();
+void read_changeset();
 
 bool handle_router_config_packet(char * buffer, router_config_t * conf);
 

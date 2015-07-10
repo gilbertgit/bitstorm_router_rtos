@@ -27,7 +27,7 @@ extern router_config_t router_config;
 
 typedef struct
 {
-	uint16_t num;
+	uint8_t id;
 }changeset_t;
 
 extern changeset_t changeset;

@@ -6,7 +6,6 @@
  */
 
 #include <stdio.h>
-#include <avr/eeprom.h>
 
 #include "wan_task.h"
 #include "wan.h"
@@ -169,13 +168,6 @@ void sendtestdata()
 		{
 			xSerialPutChar(pxWan, test_frame[i++], 5);
 		}
-}
-
-void update_changeset()
-{
-	led_alert_toggle();
-//	changeset.num = data[1];
-	//eeprom_update_block(&changeset, &changeset_temp, sizeof(changeset_t));
 }
 
 void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *dst)

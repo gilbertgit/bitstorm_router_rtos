@@ -5,6 +5,7 @@
  *      Author: titan
  */
 #include <stdbool.h>
+#include <avr/eeprom.h>
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -13,6 +14,7 @@
 #include "led.h"
 #include "task_wan_dispatch.h"
 #include "wan_task.h"
+#include "../ble/task_ble_serial.h"
 
 #define NWK_READY (PINB & (1 << PB0))
 #define BUFFER_MAX		50
@@ -31,6 +33,11 @@ QueueHandle_t xWanDispatchQueue;
 TaskHandle_t xWanDispatchHandle;
 static xComPortHandle pxWan;
 
+changeset_t changeset;
+
+// Create variable in EEPROM with initial values
+changeset_t EEMEM changeset_temp = { 12345, 1234, 1 };
+
 
 static portTASK_FUNCTION(task_wan_dispatch, params)
 {
@@ -38,6 +45,7 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 
 	uint8_t cmd;
 	bool has_syncd;
+	read_changeset();
 
 	for (;;)
 	{
@@ -64,12 +72,22 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 				;
 				break;
 			case CHANGESET:
-				led_alert_on();
-				//update_changeset();
+				update_changeset();
+				xQueueSendToBack( xBleQueue, outBuffer, 0);
 				break;
 			}
 		}
 	}
+}
+
+void update_changeset()
+{
+	changeset.id = outBuffer[1];
+	eeprom_update_block(&changeset, &changeset_temp, sizeof(changeset_t));
+}
+void read_changeset()
+{
+	eeprom_read_block(&changeset, &changeset_temp, sizeof(changeset_t));
 }
 
 void synchronize_zigbit()
