@@ -32,4 +32,15 @@ typedef struct {
 	uint8_t message_length;
 } cmd_send_header_t;
 
+typedef struct pkg{
+	uint8_t rssi;
+	uint8_t packetType;
+	uint64_t address;
+//	uint8_t addressType;
+//	uint8_t bond;
+//	uint8_t dataLen;
+//	uint8_t data[256];
+
+} PACKAGE;
+
 #endif /* BLE_MSG_H_ */

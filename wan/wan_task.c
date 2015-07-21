@@ -93,8 +93,13 @@ static portTASK_FUNCTION(task_wan, params)
 				{
 					if (outBuffer[0] == 8)
 						send_router_status_msg(pxWan, (router_status_msg_t*) outBuffer);
+					else if (outBuffer[0] == 0x09 && outBuffer[1] == 0x09)
+					{
+						if (router_config.magic == 2)
+							configure_wan();
+					}
 					else
-						sendMessage(pxWan, (btle_msg_t *) outBuffer);//sendtestdata();
+					sendMessage(pxWan, (btle_msg_t *) outBuffer); //sendtestdata();
 
 					result = xTaskNotifyWait(pdFALSE, /* Don't clear bits on entry. */
 					0xffffffff, /* Clear all bits on exit. */
@@ -156,18 +161,18 @@ void sendtestdata()
 	test_frame[6] = 0x02;
 	test_frame[7] = 0x09;
 	test_frame[8] = 0xAA;
-		// message
+	// message
 
-		// checksum
-		uint8_t cs = 0;
-		for (int i = 0; i < 9; cs ^= test_frame[i++])
-			;
-		test_frame[9] = cs;
+	// checksum
+	uint8_t cs = 0;
+	for (int i = 0; i < 9; cs ^= test_frame[i++])
+		;
+	test_frame[9] = cs;
 
-		for (int i = 0; i < 10;)
-		{
-			xSerialPutChar(pxWan, test_frame[i++], 5);
-		}
+	for (int i = 0; i < 10;)
+	{
+		xSerialPutChar(pxWan, test_frame[i++], 5);
+	}
 }
 
 void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *dst)
@@ -207,7 +212,7 @@ void configure_wan()
 	const TickType_t xMaxBlockTime = pdMS_TO_TICKS( 200 );
 
 	// now that we have the mac from the wan, send entire nwk config
-	wan_config_network();
+	wan_config_network(pxWan);
 
 	// wait for a response
 	ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
@@ -438,17 +443,17 @@ void wan_reset_frame(void)
 
 void wan_state_configure(void)
 {
-	if (wan_config())
-	{
-		state = WAIT_FOR_DATA;
-	} else if (frame_ready)
-	{
-		if (wan_config_received(inBuffer))
-		{
-			state = WAIT_FOR_DATA;
-		}
-		wan_reset_frame();
-	}
+//	if (wan_config())
+//	{
+//		state = WAIT_FOR_DATA;
+//	} else if (frame_ready)
+//	{
+//		if (wan_config_received(inBuffer))
+//		{
+//			state = WAIT_FOR_DATA;
+//		}
+//		wan_reset_frame();
+//	}
 }
 
 void task_wan_start(UBaseType_t uxPriority)

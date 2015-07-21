@@ -56,10 +56,8 @@ void wan_get_device_address()
 	}
 }
 
-void wan_config_network()
+void wan_config_network(xComPortHandle pxOut)
 {
-	xComPortHandle pxOut;
-	pxOut = xSerialPortInitMinimal(0, 38400, 10);
 	cmd_config_ntw_t config_ntw;
 
 	config_ntw.command = CMD_CONFIG_NETWORK;
@@ -110,7 +108,7 @@ void wan_config_done()
 		;
 	frame[frame_index++] = cs;
 
-	 // start transmission
+	// start transmission
 	for (int i = 0; i < frame_index;)
 	{
 		xSerialPutChar(pxOut, frame[i++], 5);
@@ -158,7 +156,7 @@ bool wan_config()
 		state = AWAITING_RESP;
 		break;
 	case CONFIG_NTW_REQ:
-		wan_config_network();
+		//wan_config_network();
 		state = AWAITING_RESP;
 	}
 	return (state == FINISHED ? true : false);

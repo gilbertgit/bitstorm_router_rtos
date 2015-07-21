@@ -19,6 +19,7 @@
 #include "../shared.h"
 
 extern QueueHandle_t xBleQueue;
+void config_ble();
 
 void task_ble_serial_start( UBaseType_t uxPriority );
 

@@ -84,7 +84,7 @@ int main(void)
 
 	task_monitor_start(tskIDLE_PRIORITY + 1);
 
-	task_router_status_start(tskIDLE_PRIORITY + 1);
+	//task_router_status_start(tskIDLE_PRIORITY + 1);
 
 	vTaskStartScheduler();
 
