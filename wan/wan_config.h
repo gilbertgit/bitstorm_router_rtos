@@ -20,6 +20,6 @@ void config_mac_resp(mac_resp_t * resp);
 bool wan_config_received(uint8_t * buff);
 void config_ntw_resp(config_ntw_resp_t * resp);
 void wan_config_network(xComPortHandle pxOut);
-void wan_config_done();
+void wan_config_done(xComPortHandle pxOut);
 
 #endif /* WAN_CONFIG_H_ */

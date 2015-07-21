@@ -155,6 +155,19 @@ static ComPort_t xaPorts[2];
 
 /*-----------------------------------------------------------*/
 
+void xSerialPortRecreateQueues(unsigned char ucPort, unsigned portBASE_TYPE uxQueueLength) {
+	ComPort_t * xComPort;
+	xComPort = &xaPorts[ucPort];
+	portENTER_CRITICAL()
+	;
+	{
+		xComPort->xRxedChars = xQueueCreate(uxQueueLength, ( unsigned portBASE_TYPE ) sizeof( signed char ));
+		xComPort->xCharsForTx = xQueueCreate(uxQueueLength, ( unsigned portBASE_TYPE ) sizeof( signed char ));
+	}
+	portEXIT_CRITICAL()
+	;
+}
+
 xComPortHandle xSerialPortInitMinimal(unsigned char ucPort, unsigned long ulWantedBaud, unsigned portBASE_TYPE uxQueueLength) {
 	unsigned long ulBaudRateCounter;
 	unsigned char ucByte;
@@ -217,7 +230,7 @@ xComPortHandle xSerialPortInitMinimal(unsigned char ucPort, unsigned long ulWant
 signed portBASE_TYPE xSerialGetChar(xComPortHandle pxPort, signed char *pcRxedChar, TickType_t xBlockTime) {
 
 	/* Get the next character from the buffer.  Return false if no characters are available, or arrive before xBlockTime expires. */
-	if (xQueueReceive(((ComPort_t*)pxPort)->xRxedChars, pcRxedChar, xBlockTime)) {
+	if (xQueueReceive(((ComPort_t* )pxPort)->xRxedChars, pcRxedChar, xBlockTime)) {
 		return pdTRUE;
 	} else {
 		return pdFALSE;
@@ -232,11 +245,12 @@ signed portBASE_TYPE xSerialPutChar(xComPortHandle pxPort, signed char cOutChar,
 		return pdFAIL;
 	}
 
-	if (((ComPort_t*)pxPort)->ucPort == 0) {
-		vInterruptOn_0();
-	}
-	else {
-		vInterruptOn_1();
+	if (((ComPort_t*) pxPort)->ucPort == 0) {
+		vInterruptOn_0()
+		;
+	} else {
+		vInterruptOn_1()
+		;
 	}
 
 	return pdPASS;
@@ -251,14 +265,15 @@ void vSerialClose(xComPortHandle xPort) {
 	portENTER_CRITICAL()
 	;
 	{
-		if (((ComPort_t*)xPort)->ucPort == 0) {
-			vInterruptOff_0();
+		if (((ComPort_t*) xPort)->ucPort == 0) {
+			vInterruptOff_0()
+			;
 			ucByte = UCSR0B;
 			ucByte &= ~serRX_INT_ENABLE;
 			UCSR0B = ucByte;
-		}
-		else {
-			vInterruptOff_1();
+		} else {
+			vInterruptOff_1()
+			;
 			ucByte = UCSR1B;
 			ucByte &= ~serRX_INT_ENABLE;
 			UCSR1B = ucByte;
@@ -309,7 +324,8 @@ ISR( USART0_UDRE_vect ) {
 		UDR0 = cChar;
 	} else {
 		/* Queue empty, nothing to send. */
-		vInterruptOff_0();
+		vInterruptOff_0()
+		;
 	}
 }
 ISR( USART1_UDRE_vect ) {
@@ -320,8 +336,8 @@ ISR( USART1_UDRE_vect ) {
 		UDR1 = cChar;
 	} else {
 		/* Queue empty, nothing to send. */
-		vInterruptOff_0();
+		vInterruptOff_1()
+		;
 	}
 }
-
 

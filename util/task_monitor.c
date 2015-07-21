@@ -38,7 +38,7 @@ void wan_task_monitor()
 
 		if (wan_zero_counter >= COUNTER_MAX)
 		{
-			led_alert_on();
+//			led_alert_on();
 			vTaskDelay(xDelay);
 
 			// we got problems, REBOOT

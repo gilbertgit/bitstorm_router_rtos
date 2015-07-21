@@ -72,7 +72,6 @@ int main(void)
 	ramdisk_init();
 	sei();
 
-	task_blinky_start((tskIDLE_PRIORITY + 1));
 	//task_ble_monitor_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
@@ -81,6 +80,8 @@ int main(void)
 	task_wan_dispatch_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_serial_start(tskIDLE_PRIORITY + 1);
+
+	task_blinky_start((tskIDLE_PRIORITY + 1));
 
 	task_monitor_start(tskIDLE_PRIORITY + 1);
 
@@ -92,9 +93,15 @@ int main(void)
 	return 0;
 }
 
+extern xComPortHandle pxWan;
+
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
 {
 	led_alert_on();
+	xSerialPutChar(pxWan, 0xCC, 5);
+	xSerialPutChar(pxWan, 0xCC, 5);
+	for (int i=0;i<10;i++)
+		xSerialPutChar(pxWan, pcTaskName[i], 5);
 }
 /*-----------------------------------------------------------*/
 

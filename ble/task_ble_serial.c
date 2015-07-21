@@ -42,13 +42,8 @@ uint8_t modeCmd[] = { 0x00, 0x02, 0x06, 0x01, 0x02, 0x02 };
 
 static portTASK_FUNCTION(task_ble, params)
 {
-	pxBle = xSerialPortInitMinimal(1, 38400, 50);
-
 	BaseType_t result;
 	signed char inChar;
-
-	xComPortHandle pxWan;
-	pxWan = xSerialPortInitMinimal(0, 38400, 64); //WAN
 
 	bufferIndex = 0;
 
@@ -57,10 +52,10 @@ static portTASK_FUNCTION(task_ble, params)
 
 	PORTD &= ~_BV(PD5);		// lower CTS to start the BLE stream
 
+	pxBle = xSerialPortInitMinimal(1, 38400, 50);
 	config_ble();
 	uint8_t msg_type = 0xFF;
 
-	pxBle = xSerialPortInitMinimal(1, 38400, 50);
 	for (;;)
 	{
 		result = xSerialGetChar(pxBle, &inChar, 5);
@@ -146,12 +141,17 @@ static portTASK_FUNCTION(task_ble_tx, params)
 	}
 }
 
+
 void config_ble()
 {
 	ble_usart_tx(pxBle, endDiscoverCmd, 4);
+	vTaskDelay(50);
 	ble_usart_tx(pxBle, discoverParams, 9);
+	vTaskDelay(50);
 	ble_usart_tx(pxBle, discoverCmd, 5);
+	vTaskDelay(50);
 	ble_usart_tx(pxBle, modeCmd, 6);
+	vTaskDelay(50);
 }
 
 void ble_usart_tx(xComPortHandle px, uint8_t data[], int size)
@@ -169,7 +169,7 @@ void task_ble_serial_start(UBaseType_t uxPriority)
 
 	if (xBleQueue == 0)
 	{
-		led_alert_on();
+//		led_alert_on();
 	} else
 	{
 		ble_queue_created = true;

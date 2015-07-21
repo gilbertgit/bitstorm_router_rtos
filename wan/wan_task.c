@@ -54,7 +54,7 @@ const static TickType_t xDelayTest = 50 / portTICK_PERIOD_MS;
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 const static TickType_t xDelaySend = 500 / portTICK_PERIOD_MS;
 
-static xComPortHandle pxWan;
+xComPortHandle pxWan;
 
 static uint16_t message_counter;
 uint8_t cobs_buffer[60];
@@ -64,6 +64,7 @@ changeset_t changeset;
 
 // Create variable in EEPROM with initial values
 //changeset_t EEMEM changeset_temp = { 12345, 1234, 1 };
+static uint8_t configWanCmd[] = { 0x09, 0x09 };
 
 static portTASK_FUNCTION(task_wan, params) {
 
@@ -78,6 +79,11 @@ static portTASK_FUNCTION(task_wan, params) {
 	// bounce power to wan
 	// read config
 	// if config is good (magic==2) then push 0x09/0x09 onto queue
+//	router_config.channel = 0x11;
+//	router_config.mac = 0xaabbccddeeff;
+//	router_config.pan_id = 0x1973;
+//	router_config.magic = 2;
+//	xQueueSendToBack(xWANQueue, configWanCmd, 0);
 
 	for (;;) {
 		xWanMonitorCounter++;
@@ -104,10 +110,10 @@ static portTASK_FUNCTION(task_wan, params) {
 				&ulNotifiedValue, /* Stores the notified value. */
 				xDelaySend);
 
-				if (result == pdFALSE)
-					led_alert_on();
-				else
-					led_alert_off();
+//				if (result == pdFALSE)
+//					led_alert_on();
+//				else
+//					led_alert_off();
 
 				// TODO: handle timeout errors
 			}
@@ -203,13 +209,13 @@ void configure_wan() {
 	if (ulNotificationValue == 1) {
 		/* The transmission ended as expected. */
 		frame_index = 0;
-		wan_config_done();
+		wan_config_done(pxWan);
 
 		frame_index = 0;
 
 		vTaskDelay(xDelayTest);
 
-		led_alert_off();
+//		led_alert_off();
 	} else {
 		/* The call to ulTaskNotifyTake() timed out. */
 		configure_wan();
@@ -267,7 +273,7 @@ void waitForNwkConfigResp() {
 			} else if (frame_index >= frame_length) {
 
 				if (isValidMessage()) {
-					led_alert_on();
+//					led_alert_on();
 					// we got a good message so continue with the config
 					break;
 
@@ -421,6 +427,8 @@ void task_wan_start(UBaseType_t uxPriority) {
 		queue_created = true;
 		xTaskCreate(task_wan, "wan", configMINIMAL_STACK_SIZE, NULL, uxPriority, &xWanTaskHandle);
 		xTaskCreate(task_wan_rx, "wan_rx", configMINIMAL_STACK_SIZE, NULL, uxPriority, &xWanTaskHandle_rx);
+//		xTaskCreate(task_wan, "wan", 500, NULL, uxPriority, &xWanTaskHandle);
+//		xTaskCreate(task_wan_rx, "wan_rx", 500, NULL, uxPriority, &xWanTaskHandle_rx);
 
 	}
 }

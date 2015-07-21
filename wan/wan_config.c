@@ -76,29 +76,27 @@ void wan_config_network(xComPortHandle pxOut) {
 	frame[frame_index++] = cs;
 
 	uint8_t result = pdPASS;
-	result = xSerialPutChar(pxOut, 0xAA, 50);
-	result &= xSerialPutChar(pxOut, 0xAA, 50);
-	result &= xSerialPutChar(pxOut, 0xAA, 50);
-	result &= xSerialPutChar(pxOut, 0xAA, 50);
+//	result = xSerialPutChar(pxOut, 0xAA, 5);
+//	result &= xSerialPutChar(pxOut, 0xAA, 5);
+//	result &= xSerialPutChar(pxOut, 0xAA, 5);
+//	result &= xSerialPutChar(pxOut, 0xAA, 5);
 	for (int i = 0; i < frame_index;) {
-		result &= xSerialPutChar(pxOut, frame[i++], 50);
+		result &= xSerialPutChar(pxOut, frame[i++], 5);
 	}
-	result &= xSerialPutChar(pxOut, 0xBB, 50);
-	result &= xSerialPutChar(pxOut, 0xBB, 50);
-	result &= xSerialPutChar(pxOut, 0xBB, 50);
-	result &= xSerialPutChar(pxOut, 0xBB, 50);
-
-	if (result == pdFAIL) {
-		for (;;) {
-			led_alert_toggle();
-			vTaskDelay(200);
-		}
-	}
+//	result &= xSerialPutChar(pxOut, 0xBB, 5);
+//	result &= xSerialPutChar(pxOut, 0xBB, 5);
+//	result &= xSerialPutChar(pxOut, 0xBB, 5);
+//	result &= xSerialPutChar(pxOut, 0xBB, 5);
+//
+//	if (result == pdFAIL) {
+//		for (int i=0;i<4;i++) {
+//			led_alert_toggle();
+//			vTaskDelay(500);
+//		}
+//	}
 }
 
-void wan_config_done() {
-	xComPortHandle pxOut;
-	pxOut = xSerialPortInitMinimal(0, 38400, 10);
+void wan_config_done(xComPortHandle pxOut) {
 
 	cmd_header_t cmd_header;
 	uint8_t frame[10];

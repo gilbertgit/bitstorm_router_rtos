@@ -105,7 +105,7 @@ void task_wan_dispatch_start(UBaseType_t uxPriority)
 
 	if (xWanDispatchQueue == 0)
 	{
-		led_alert_on();
+//		led_alert_on();
 	} else
 	{
 		queue_created = true;

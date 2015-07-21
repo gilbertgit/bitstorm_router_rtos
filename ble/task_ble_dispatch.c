@@ -48,7 +48,7 @@ router_config_t EEMEM router_config_temp = { 12345678, 1234, 1 };
 #define DATA_INDEX 			11
 
 enum classes {
-	SYSTEM_CLASS = 0x00, ATTR_DB_CLASS = 0x02, CONNECTION = 0X03, GAP_CLASS = 0x06
+	SYSTEM_CLASS = 0x00, ATTR_DB_CLASS = 0x02, CONNECTION = 0x03, GAP_CLASS = 0x06
 };
 uint64_t router_addr_temp;
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
@@ -82,8 +82,8 @@ static portTASK_FUNCTION(task_dispatch, params)
 
 			// TODO: check if the tag that sent the message has the correct changeset
 			// if not correct, put in ble queue that changeset needs to be updated for this tag
-			if (msg.cs_id == changeset.id)
-				led_alert_on();
+//			if (msg.cs_id == changeset.id)
+//				led_alert_on();
 
 #ifdef BYPASS_MODE
 //			msg.type = MSG_TYPE_NORM;
@@ -209,7 +209,7 @@ void connection_class()
 	switch (outBuffer[3])
 	{
 	case 0x04: // disconnect event
-		led_alert_toggle();
+//		led_alert_toggle();
 		is_connected = false;
 
 		if (router_config.magic == 2)
