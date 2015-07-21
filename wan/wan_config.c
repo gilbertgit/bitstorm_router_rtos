@@ -30,8 +30,7 @@ uint8_t state = SEND_MAC_REQ;
 
 const static TickType_t xDelay = 20 / portTICK_PERIOD_MS;
 
-void wan_get_device_address()
-{
+void wan_get_device_address() {
 	xComPortHandle pxOut;
 	pxOut = xSerialPortInitMinimal(0, 38400, 10);
 	cmd_header_t cmd_header;
@@ -40,8 +39,7 @@ void wan_get_device_address()
 	cmd_header.command = CMD_GET_ADDRESS;
 	int frame_index = 1;
 	// header
-	for (int i = 0; i < sizeof(cmd_header); i++)
-	{
+	for (int i = 0; i < sizeof(cmd_header); i++) {
 		frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
 	}
 	// checksum
@@ -50,14 +48,12 @@ void wan_get_device_address()
 		;
 	frame[frame_index++] = cs;
 
-	for (int i = 0; i < frame_index;)
-	{
+	for (int i = 0; i < frame_index;) {
 		xSerialPutChar(pxOut, frame[i++], 5);
 	}
 }
 
-void wan_config_network(xComPortHandle pxOut)
-{
+void wan_config_network(xComPortHandle pxOut) {
 	cmd_config_ntw_t config_ntw;
 
 	config_ntw.command = CMD_CONFIG_NETWORK;
@@ -70,8 +66,7 @@ void wan_config_network(xComPortHandle pxOut)
 
 	int frame_index = 1;
 	//config
-	for (int i = 0; i < sizeof(config_ntw); i++)
-	{
+	for (int i = 0; i < sizeof(config_ntw); i++) {
 		frame[frame_index++] = ((uint8_t *) (&config_ntw))[i];
 	}
 	// checksum
@@ -80,14 +75,28 @@ void wan_config_network(xComPortHandle pxOut)
 		;
 	frame[frame_index++] = cs;
 
-	for (int i = 0; i < frame_index;)
-	{
-		xSerialPutChar(pxOut, frame[i++], 5);
+	uint8_t result = pdPASS;
+	result = xSerialPutChar(pxOut, 0xAA, 50);
+	result &= xSerialPutChar(pxOut, 0xAA, 50);
+	result &= xSerialPutChar(pxOut, 0xAA, 50);
+	result &= xSerialPutChar(pxOut, 0xAA, 50);
+	for (int i = 0; i < frame_index;) {
+		result &= xSerialPutChar(pxOut, frame[i++], 50);
+	}
+	result &= xSerialPutChar(pxOut, 0xBB, 50);
+	result &= xSerialPutChar(pxOut, 0xBB, 50);
+	result &= xSerialPutChar(pxOut, 0xBB, 50);
+	result &= xSerialPutChar(pxOut, 0xBB, 50);
+
+	if (result == pdFAIL) {
+		for (;;) {
+			led_alert_toggle();
+			vTaskDelay(200);
+		}
 	}
 }
 
-void wan_config_done()
-{
+void wan_config_done() {
 	xComPortHandle pxOut;
 	pxOut = xSerialPortInitMinimal(0, 38400, 10);
 
@@ -98,8 +107,7 @@ void wan_config_done()
 	int frame_index = 1;
 
 	// header
-	for (int i = 0; i < sizeof(cmd_header); i++)
-	{
+	for (int i = 0; i < sizeof(cmd_header); i++) {
 		frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
 	}
 	// checksum
@@ -109,17 +117,14 @@ void wan_config_done()
 	frame[frame_index++] = cs;
 
 	// start transmission
-	for (int i = 0; i < frame_index;)
-	{
+	for (int i = 0; i < frame_index;) {
 		xSerialPutChar(pxOut, frame[i++], 5);
 	}
 }
 
-bool wan_config_received(uint8_t * buff)
-{
+bool wan_config_received(uint8_t * buff) {
 	resp_type = buff[1];
-	switch (resp_type)
-	{
+	switch (resp_type) {
 	case resp_type_address:
 		config_mac_resp((mac_resp_t *) &buff[1]);
 		break;
@@ -131,26 +136,21 @@ bool wan_config_received(uint8_t * buff)
 	return (state == FINISHED ? true : false);
 }
 
-void config_mac_resp(mac_resp_t * resp)
-{
+void config_mac_resp(mac_resp_t * resp) {
 	//shared.mac = resp->wan_device_address;
 	state = CONFIG_NTW_REQ;
 }
 
-void config_ntw_resp(config_ntw_resp_t * resp)
-{
+void config_ntw_resp(config_ntw_resp_t * resp) {
 	state = FINISHED;
 }
 
-void no_ack_status_resp(no_ack_status_resp_t * resp)
-{
+void no_ack_status_resp(no_ack_status_resp_t * resp) {
 	state = FINISHED;
 }
 
-bool wan_config()
-{
-	switch (state)
-	{
+bool wan_config() {
+	switch (state) {
 	case SEND_MAC_REQ:
 		wan_get_device_address();
 		state = AWAITING_RESP;

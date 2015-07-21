@@ -34,6 +34,8 @@ QueueHandle_t xDispatchQueue;
 router_config_t router_config;
 //changeset_t cs_v;
 
+static bool is_connected = false;
+
 // Create variable in EEPROM with initial values
 router_config_t EEMEM router_config_temp = { 12345678, 1234, 1 };
 
@@ -159,13 +161,15 @@ void system_class(xComPortHandle hnd)
 	}
 }
 
+static uint8_t getAddrCmd[] = { 0x05, 0x00, 0x00, 0x00, 0x02 };
+
 void attr_db_class()
 {
-	uint8_t getAddrCmd[] = { 0x05, 0x00, 0x00, 0x00, 0x02 };
 
 	switch (outBuffer[3])
 	{
 	case 0x00: // GATT value change
+		is_connected = true;
 		handle_router_config_packet2((char*) outBuffer, &router_config);
 
 		// get the ble address to finish the config
@@ -183,7 +187,7 @@ void gap_class()
 	case 0x00: // discover event
 		// TODO: filter data that is not from BS tags
 		btle_handle_le_packet2((char *) &outBuffer[4], &msg);
-		if (router_config.magic == 2)
+		if (router_config.magic == 2 && is_connected == false)
 		{
 			msg.type = MSG_TYPE_NORM;
 			result = xQueueSendToBack( xWANQueue, &msg, 0);
@@ -197,19 +201,21 @@ void gap_class()
 	}
 }
 
+static uint8_t configCmd[] = { 0x06, 0x02 };
+static uint8_t configWanCmd[] = { 0x09, 0x09 };
+
 void connection_class()
 {
-	uint8_t configCmd[] = { 0x06, 0x02 };
-	uint8_t configWanCmd[] = { 0x09, 0x09 };
 	switch (outBuffer[3])
 	{
 	case 0x04: // disconnect event
 		led_alert_toggle();
+		is_connected = false;
 
 		if (router_config.magic == 2)
 		{
 			read_config();
-			vTaskDelay(xDelay);
+//			vTaskDelay(xDelay);
 			xQueueSendToBack(xWANQueue, configWanCmd, 0);
 		}
 		xQueueSendToBack(xBleQueue, configCmd, 0);
@@ -220,7 +226,7 @@ void connection_class()
 bool btle_handle_le_packet2(char * msg, btle_msg_t * btle_msg)
 {
 	memset(btle_msg, 0, sizeof(btle_msg_t));
-	PACKAGE* pkg = malloc(sizeof(PACKAGE));
+	PACKAGE* pkg = malloc(sizeof(PACKAGE));  //ERROR: MEMORY LEAK
 
 	//int i;
 	pkg->rssi = msg[RSSI_INDEX];
