@@ -32,4 +32,7 @@ typedef struct
 
 extern changeset_t changeset;
 
+void read_config();
+void write_config();
+
 #endif /* SHARED_H_ */

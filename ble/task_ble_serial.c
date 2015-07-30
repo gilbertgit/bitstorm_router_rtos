@@ -14,6 +14,9 @@
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
 #define QUEUE_SIZE		10
 #define QUEUE_TICKS		10
+#define READY_TO_RCV		PORTD &= ~_BV(PD5);
+#define NOT_READY_TO_RCV	PORTD |= _BV(PD5);
+
 
 static signed char inBuffer[BUFFER_MAX + 1];
 static signed char outBuffer[BUFFER_SIZE];
@@ -27,21 +30,23 @@ static xComPortHandle pxBle;
 bool ble_queue_created = false;
 
 QueueHandle_t xBleQueue;
+uint16_t xBleMonitorCounter;
 
 uint8_t inState = 0;
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
-const static TickType_t xDelay_2s = 2000 / portTICK_PERIOD_MS;
 void ble_usart_tx(xComPortHandle px, uint8_t data[], int size);
 
-uint8_t discoverCmd[] = { 0x00, 0x01, 0x06, 0x02, 0x01 };
+//uint8_t discoverCmd[] = { 0x00, 0x01, 0x06, 0x02, 0x01 };
 uint8_t endDiscoverCmd[] = { 0x00, 0x00, 0x06, 0x04 };
-uint8_t discoverParams[] = { 0x00, 0x05, 0x06, 0x07, 0x40, 0x00, 0x32, 0x00, 0x00 };
+//uint8_t discoverParams[] = { 0x00, 0x05, 0x06, 0x07, 0x40, 0x00, 0x32, 0x00, 0x00 };
 uint8_t connectCmd[] = { 0x00, 0x0F, 0x06, 0x03, 0x12, 0xE1, 0x2D, 0x80, 0x07, 0x00, 0x00, 0x06, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x0A, 0x00 };
 uint8_t disconnectCmd[] = { 0x00, 0x01, 0x03, 0x00, 0x00 };
-uint8_t modeCmd[] = { 0x00, 0x02, 0x06, 0x01, 0x02, 0x02 };
+//uint8_t modeCmd[] = { 0x00, 0x02, 0x06, 0x01, 0x02, 0x02 };
+uint8_t helloCmd[] = { 0x00, 0x00, 0x00, 0x01 };
 
 static portTASK_FUNCTION(task_ble, params)
 {
+	xBleMonitorCounter = 0;
 	BaseType_t result;
 	signed char inChar;
 
@@ -53,16 +58,25 @@ static portTASK_FUNCTION(task_ble, params)
 	PORTD &= ~_BV(PD5);		// lower CTS to start the BLE stream
 
 	pxBle = xSerialPortInitMinimal(1, 38400, 50);
-	config_ble();
-	uint8_t msg_type = 0xFF;
+
+	vTaskDelay(xDelay);
+	// I have to send this in order for the BG to let me know that it is ready to receive messages.
+	hello_ble();
+
+	// #3
+		DDRA |= _BV(PA2);
+		PORTA |= _BV(PA2);
 
 	for (;;)
 	{
+		xBleMonitorCounter++;
+		//xSerialPutChar(pxBle, 0xAB, 5);
 		result = xSerialGetChar(pxBle, &inChar, 5);
+		PORTA ^= _BV(PA2);
 		if (result == pdTRUE )
 		{
 			uint8_t data = inChar;
-			//xSerialPutChar(pxWan, data, 5);
+
 			switch (inState)
 			{
 			case 0:
@@ -90,27 +104,12 @@ static portTASK_FUNCTION(task_ble, params)
 				len--;
 				if (len == 0)
 				{
-
-					//led_alert_on();
-					PORTD |= _BV(PD5);
-//					if (inBuffer[9] == 0x00 && inBuffer[10] == 0x00)
-//					{
+					NOT_READY_TO_RCV;
 					result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
-					//}
-//					xSerialPutChar(pxWan, 0xAA, 5);
-//					xSerialPutChar(pxWan, 0xAA, 5);
-//					xSerialPutChar(pxWan, 0xAA, 5);
-//					for (int i = 0; i < bufferIndex;)
-//					{
-//						xSerialPutChar(pxWan, inBuffer[i++], 5);
-//					}
-//					xSerialPutChar(pxWan, 0xBB, 5);
-//					xSerialPutChar(pxWan, 0xBB, 5);
-//					xSerialPutChar(pxWan, 0xBB, 5);
+
 					bufferIndex = 0;
 					inState = 0;
-					PORTD &= ~_BV(PD5);
-
+					READY_TO_RCV;
 				}
 				break;
 			}
@@ -132,6 +131,7 @@ static portTASK_FUNCTION(task_ble_tx, params)
 				config_ble();
 			} else
 			{
+				// send anything else that comes in on the ble queue
 				for (int i = 1; i < size;)
 				{
 					xSerialPutChar(pxBle, outBuffer[i++], 5);
@@ -141,17 +141,21 @@ static portTASK_FUNCTION(task_ble_tx, params)
 	}
 }
 
+void hello_ble()
+{
+	ble_usart_tx(pxBle, helloCmd, 4);
+}
 
 void config_ble()
 {
 	ble_usart_tx(pxBle, endDiscoverCmd, 4);
-	vTaskDelay(50);
-	ble_usart_tx(pxBle, discoverParams, 9);
-	vTaskDelay(50);
-	ble_usart_tx(pxBle, discoverCmd, 5);
-	vTaskDelay(50);
-	ble_usart_tx(pxBle, modeCmd, 6);
-	vTaskDelay(50);
+//	vTaskDelay(50);
+//	ble_usart_tx(pxBle, discoverParams, 9);
+//	vTaskDelay(50);
+//	ble_usart_tx(pxBle, discoverCmd, 5);
+//	vTaskDelay(50);
+//	ble_usart_tx(pxBle, modeCmd, 6);
+//	vTaskDelay(50);
 }
 
 void ble_usart_tx(xComPortHandle px, uint8_t data[], int size)

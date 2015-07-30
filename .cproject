@@ -37,6 +37,7 @@
 								</option>
 								<option id="de.innot.avreclipse.compiler.option.def.108918638" name="Define Syms (-D)" superClass="de.innot.avreclipse.compiler.option.def" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="BYPASS_MODE"/>
+									<listOptionValue builtIn="false" value="NEW_ROUTER"/>
 								</option>
 								<option id="de.innot.avreclipse.compiler.option.undef.1381156375" name="Undefine Syms (-U)" superClass="de.innot.avreclipse.compiler.option.undef"/>
 								<inputType id="de.innot.avreclipse.compiler.winavr.input.1227804704" name="C Source Files" superClass="de.innot.avreclipse.compiler.winavr.input"/>

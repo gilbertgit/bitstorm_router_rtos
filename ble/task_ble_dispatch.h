@@ -20,6 +20,7 @@
 #include "../shared.h"
 
 extern QueueHandle_t xDispatchQueue;
+extern uint16_t xBleDispatchMonitorCounter;
 
 #define MSG_TYPE_NORM 		1
 #define MSG_TYPE_IN_PROX 	5
@@ -29,8 +30,6 @@ void task_ble_dispatch_start( UBaseType_t uxPriority );
 //bool btle_handle_le_packet(char * buffer, btle_msg_t *);
 uint8_t btle_parse_nybble(char c);
 
-void read_config();
-void write_config();
 void read_changeset();
 
 //bool handle_router_config_packet(char * buffer, router_config_t * conf);

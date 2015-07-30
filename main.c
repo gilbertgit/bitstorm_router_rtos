@@ -59,14 +59,14 @@ int main(void)
 	///////////////////////////////////////////
 	// Enable WAN
 	init_wan();
-
+	//_delay_ms(1000);
 	// Enable BLE
 #ifdef NEW_ROUTER
 	DDRC |= (1 << PC7); // OUTPUT
 	PORTC &= ~(1 << PC7); // LOW
+	_delay_ms(1000);
 #endif
 	///////////////////////////////////////////
-
 	init_wd();
 	clock_init();
 	ramdisk_init();
@@ -75,6 +75,7 @@ int main(void)
 	//task_ble_monitor_start(tskIDLE_PRIORITY + 1);
 
 	task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
+
 	task_wan_start(tskIDLE_PRIORITY + 1);
 
 	task_wan_dispatch_start(tskIDLE_PRIORITY + 1);
@@ -85,7 +86,7 @@ int main(void)
 
 	task_monitor_start(tskIDLE_PRIORITY + 1);
 
-	//task_router_status_start(tskIDLE_PRIORITY + 1);
+	task_router_status_start(tskIDLE_PRIORITY + 1);
 
 	vTaskStartScheduler();
 
@@ -93,15 +94,15 @@ int main(void)
 	return 0;
 }
 
-extern xComPortHandle pxWan;
+//extern xComPortHandle pxWan;
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
 {
 	led_alert_on();
-	xSerialPutChar(pxWan, 0xCC, 5);
-	xSerialPutChar(pxWan, 0xCC, 5);
-	for (int i=0;i<10;i++)
-		xSerialPutChar(pxWan, pcTaskName[i], 5);
+//	xSerialPutChar(pxWan, 0xCC, 5);
+//	xSerialPutChar(pxWan, 0xCC, 5);
+//	for (int i=0;i<10;i++)
+//		xSerialPutChar(pxWan, pcTaskName[i], 5);
 }
 /*-----------------------------------------------------------*/
 

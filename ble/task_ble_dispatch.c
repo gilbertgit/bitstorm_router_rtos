@@ -10,9 +10,9 @@
 #include "task_ble_serial.h"
 #include "task_ble_dispatch.h"
 #include "ble_msg.h"
-#include <avr/eeprom.h>
 #include "../wan/wan_task.h"
 #include "../wan/wan_config.h"
+#include "wan.h"
 #include "../ramdisk/ramdisk.h"
 #include "../util/clock.h"
 #include "../shared.h"
@@ -22,23 +22,6 @@ char HEX_DIGITS[] = "0123456789abcdef";
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
 #define QUEUE_TICKS		10
-
-static signed char outBuffer[BUFFER_SIZE];
-static int bufferIndex;
-static uint8_t command = 0;
-
-static BaseType_t result;
-static btle_msg_t msg;
-
-QueueHandle_t xDispatchQueue;
-router_config_t router_config;
-//changeset_t cs_v;
-
-static bool is_connected = false;
-
-// Create variable in EEPROM with initial values
-router_config_t EEMEM router_config_temp = { 12345678, 1234, 1 };
-
 #define RSSI_INDEX 			0
 #define PACKET_TYPE_INDEX 	1
 #define ADDRESS_INDEX 		2
@@ -47,20 +30,41 @@ router_config_t EEMEM router_config_temp = { 12345678, 1234, 1 };
 #define DATA_LENGTH_INDEX 	10
 #define DATA_INDEX 			11
 
+static signed char outBuffer[BUFFER_SIZE];
+
+static BaseType_t result;
+static btle_msg_t msg;
+
+uint16_t xBleDispatchMonitorCounter;
+QueueHandle_t xDispatchQueue;
+router_config_t router_config;
+//changeset_t cs_v;
+
+static bool is_configuring = false;
+static bool is_connected = false;
+static uint8_t configCmd[] = { 0x06, 0x02 };
+//static uint8_t configWanCmd[] = { 0x09, 0x09 };
+
+//const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
+
 enum classes {
 	SYSTEM_CLASS = 0x00, ATTR_DB_CLASS = 0x02, CONNECTION = 0x03, GAP_CLASS = 0x06
 };
 uint64_t router_addr_temp;
-const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 
 static portTASK_FUNCTION(task_dispatch, params)
 {
-	//xComPortHandle pxOut;
-	//pxOut = xSerialPortInitMinimal(0, 38400, 10);
+	// #2
+	DDRA |= _BV(PA1);
+	PORTA |= _BV(PA1);
+
+
 	read_config();
 	read_changeset();
 	for (;;)
 	{
+		PORTA ^= _BV(PA1);
+		xBleDispatchMonitorCounter++;
 		result = xQueueReceive( xDispatchQueue, outBuffer, QUEUE_TICKS);
 		if (result == pdTRUE )
 		{
@@ -153,10 +157,15 @@ void system_class(xComPortHandle hnd)
 	case 0x02: // address response
 		if (router_config.magic == 1)
 		{
+			outBuffer[10] = 0x00;
+			outBuffer[11] = 0x00;
 			router_config.mac = *(uint64_t*) &outBuffer[4];
 			router_config.magic = 2;
 			write_config();
 		}
+		break;
+	case 0x00: // ble boot
+		xQueueSendToBack(xBleQueue, configCmd, 0);
 		break;
 	}
 }
@@ -170,14 +179,18 @@ void attr_db_class()
 	{
 	case 0x00: // GATT value change
 		is_connected = true;
+		is_configuring = true;
 		handle_router_config_packet2((char*) outBuffer, &router_config);
 
 		// get the ble address to finish the config
 		xQueueSendToBack(xBleQueue, getAddrCmd, 0);
-
 		break;
 	}
 }
+
+uint8_t discoverParams[] = { 0x0A, 0x00, 0x05, 0x06, 0x07, 0x40, 0x00, 0x32, 0x00, 0x00 };
+uint8_t discoverCmd[] = { 0x06, 0x00, 0x01, 0x06, 0x02, 0x01 };
+uint8_t modeCmd[] = { 0x07, 0x00, 0x02, 0x06, 0x01, 0x02, 0x02 };
 
 void gap_class()
 {
@@ -186,23 +199,34 @@ void gap_class()
 	{
 	case 0x00: // discover event
 		// TODO: filter data that is not from BS tags
-		btle_handle_le_packet2((char *) &outBuffer[4], &msg);
-		if (router_config.magic == 2 && is_connected == false)
+		if (outBuffer[11] == 0x00 && outBuffer[12] == 0x00)
 		{
-			msg.type = MSG_TYPE_NORM;
-			result = xQueueSendToBack( xWANQueue, &msg, 0);
+			btle_handle_le_packet2((char *) &outBuffer[4], &msg);
+			if (router_config.magic == 2 && is_connected == false)
+			{
+				msg.type = MSG_TYPE_NORM;
+				result = xQueueSendToBack( xWANQueue, &msg, 0);
+				led_alert_toggle();
+			}
 		}
-//		for (int i = 0; i < sizeof(btle_msg_t);)
-//		{
-//			//xSerialPutChar(hnd, ((char *) &outBuffer[2])[i], 5);
-//			xSerialPutChar(hnd,((char *) (&msg))[i++], 5);
-//		}
+		break;
+	case 0x03: // connect response
+
+		break;
+	case 0x04: // end discover resp
+		// send discover params
+		xQueueSendToBack(xBleQueue, discoverParams, 0);
+		break;
+	case 0x07: // discover params resp
+		// send discover cmd
+		xQueueSendToBack(xBleQueue, discoverCmd, 0);
+		break;
+	case 0x02: // discover cmd resp
+		// send mode cmd
+		xQueueSendToBack(xBleQueue, modeCmd, 0);
 		break;
 	}
 }
-
-static uint8_t configCmd[] = { 0x06, 0x02 };
-static uint8_t configWanCmd[] = { 0x09, 0x09 };
 
 void connection_class()
 {
@@ -214,11 +238,20 @@ void connection_class()
 
 		if (router_config.magic == 2)
 		{
-			read_config();
-//			vTaskDelay(xDelay);
-			xQueueSendToBack(xWANQueue, configWanCmd, 0);
+			//read_config();
+			if (is_configuring)
+			{
+				// THIS IS NOT COOL!
+				// WE NEED TO FIGURE OUT WHY THE CHIP IS LOCKING UP ON DISCONNECT/CONFIG
+				kill_wan();
+				while (1)
+					;
+			}
+			//xQueueSendToBack(xWANQueue, configWanCmd, 0);
 		}
+
 		xQueueSendToBack(xBleQueue, configCmd, 0);
+		is_configuring = false;
 		break;
 	}
 }
@@ -226,29 +259,9 @@ void connection_class()
 bool btle_handle_le_packet2(char * msg, btle_msg_t * btle_msg)
 {
 	memset(btle_msg, 0, sizeof(btle_msg_t));
-	PACKAGE* pkg = malloc(sizeof(PACKAGE));  //ERROR: MEMORY LEAK
 
-	//int i;
-	pkg->rssi = msg[RSSI_INDEX];
-	pkg->packetType = msg[PACKET_TYPE_INDEX];
-
-	pkg->address = (uint64_t) msg[6] << 32 | (uint64_t) msg[5] << 24 | (uint64_t) msg[4] << 16 | (uint64_t) msg[3] << 8 | (uint64_t) msg[2];
-	router_addr_temp = pkg->address;
-	//pkg->address = *((uint64_t*) &msg[0x02]);
-//	for (i = ADDRESS_INDEX; i < ADDRESS_TYPE_INDEX; i++)
-//	{
-//		pkg->address[i - ADDRESS_INDEX] = msg[i];
-//	}
-//	pkg->addressType = msg[ADDRESS_TYPE_INDEX];
-//	pkg->bond = msg[BOND_INDEX];
-//	pkg->dataLen = msg[DATA_LENGTH_INDEX];
-//	for (i = 0; i < pkg->dataLen; i++)
-//	{
-//		pkg->data[i] = msg[i + DATA_INDEX];
-//	}
-
-	btle_msg->rssi = pkg->rssi;
-	btle_msg->mac = pkg->address;
+	btle_msg->rssi = msg[RSSI_INDEX];
+	btle_msg->mac = (uint64_t) msg[6] << 32 | (uint64_t) msg[5] << 24 | (uint64_t) msg[4] << 16 | (uint64_t) msg[3] << 8 | (uint64_t) msg[2];
 	btle_msg->batt = 0;
 	btle_msg->temp = 0;
 	btle_msg->cs_id = 0xAB;
@@ -259,7 +272,8 @@ bool btle_handle_le_packet2(char * msg, btle_msg_t * btle_msg)
 bool handle_router_config_packet2(char * buffer, router_config_t * conf)
 {
 	memset(conf, 0, sizeof(router_config_t));
-	conf->pan_id = *((uint16_t*) &buffer[11]);
+	//conf->pan_id = *((uint16_t*) &buffer[11]);
+	conf->pan_id = (uint16_t) buffer[11] << 8 | (uint16_t) buffer[12];
 	conf->channel = buffer[13];
 	conf->magic = 1;
 	return true;
@@ -275,21 +289,6 @@ uint8_t btle_parse_nybble(char c)
 			return i;
 	}
 	return 0x80;
-}
-
-void read_config()
-{
-
-	eeprom_read_block(&router_config, &router_config_temp, sizeof(router_config_t));
-}
-
-void write_config()
-{
-//	router_config.magic = 0;
-//	router_config.mac = 0;
-//	router_config.pan_id = 0;
-//	router_config.channel = 0;
-	eeprom_update_block(&router_config, &router_config_temp, sizeof(router_config_t));
 }
 
 void task_ble_dispatch_start(UBaseType_t uxPriority)

@@ -17,4 +17,8 @@
 void task_monitor_start(UBaseType_t uxPriority);
 void reboot_1284();
 
+void wan_task_monitor();
+void ble_task_monitor();
+void ble_dispatch_task_monitor();
+
 #endif /* TASK_MONITOR_H_ */

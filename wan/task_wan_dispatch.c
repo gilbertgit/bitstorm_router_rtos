@@ -31,7 +31,6 @@ bool queue_created = false;
 
 QueueHandle_t xWanDispatchQueue;
 TaskHandle_t xWanDispatchHandle;
-static xComPortHandle pxWan;
 
 changeset_t changeset;
 
@@ -41,8 +40,6 @@ changeset_t EEMEM changeset_temp = { 12345, 1234, 1 };
 
 static portTASK_FUNCTION(task_wan_dispatch, params)
 {
-	pxWan = xSerialPortInitMinimal(0, 38400, 50);
-
 	uint8_t cmd;
 	bool has_syncd;
 	read_changeset();
@@ -54,7 +51,6 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 		if (result == pdTRUE )
 		{
 			cmd = outBuffer[0];
-			//xSerialPutChar(pxWan, cmd, 5);
 			switch (cmd)
 			{
 			case 'T':
@@ -63,7 +59,7 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 			case 'G':
 				if (!has_syncd)
 				{
-					synchronize_zigbit();
+					//synchronize_zigbit();
 					has_syncd = true;
 				}
 				break;
@@ -73,7 +69,7 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 				break;
 			case CHANGESET:
 				update_changeset();
-				xQueueSendToBack( xBleQueue, outBuffer, 0);
+				xQueueSendToBack(xBleQueue, outBuffer, 0);
 				break;
 			}
 		}

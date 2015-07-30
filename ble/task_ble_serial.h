@@ -19,7 +19,10 @@
 #include "../shared.h"
 
 extern QueueHandle_t xBleQueue;
+extern uint16_t xBleMonitorCounter;
+
 void config_ble();
+void hello_ble();
 
 void task_ble_serial_start( UBaseType_t uxPriority );
 
