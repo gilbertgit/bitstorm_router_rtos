@@ -62,9 +62,9 @@ int main(void)
 	//_delay_ms(1000);
 	// Enable BLE
 #ifdef NEW_ROUTER
-	DDRC |= (1 << PC7); // OUTPUT
-	PORTC &= ~(1 << PC7); // LOW
-	_delay_ms(1000);
+//	DDRC |= (1 << PC7); // OUTPUT
+//	PORTC &= ~(1 << PC7); // LOW
+//	_delay_ms(1000);
 #endif
 	///////////////////////////////////////////
 	init_wd();

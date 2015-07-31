@@ -19,13 +19,13 @@
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
 #define QUEUE_TICKS		10
+#define WAN_CONFIG_RETRY_MAX	3
 static signed char outBuffer[BUFFER_SIZE];
 static uint8_t inBuffer[BUFFER_SIZE];
 static uint8_t frame[80];
 static uint8_t status_msg_frame[50];
 static app_msg_t app_msg;
 static cmd_send_header_t cmd_header;
-static unsigned long ulNotifiedValue;
 static bool queue_created = false;
 
 TaskHandle_t xWanTaskHandle;
@@ -48,13 +48,10 @@ static int frame_index = 0;
 static int frame_length = 0;
 bool frame_ready = false;
 
-static bool wan_config_good = false;
 static bool is_wan_configuring = false;
 static int wan_config_retry = 0;
 
-const static TickType_t xDelay_50 = 250 / portTICK_PERIOD_MS;
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
-const static TickType_t xDelaySend = 500 / portTICK_PERIOD_MS;
 
 xComPortHandle pxWan;
 
@@ -64,86 +61,76 @@ uint8_t decoded_msg[60];
 
 changeset_t changeset;
 
-static uint8_t configWanCmd[] = { 0x09, 0x09 };
-
 static portTASK_FUNCTION(task_wan, params)
 {
+	uint8_t retries = 0;
 	message_counter = 0;
 
 	xWanMonitorCounter = 0;
 	BaseType_t result;
 
-	pxWan = xSerialPortInitMinimal(0, 38400, 50);
+	pxWan = xSerialPortInitMinimal(0, 38400, 5);
 	vTaskDelay(xDelay);		// Wait 500 to make sure all systems are up before we start sending
 
 	read_config();
 
-//	xQueueSendToBack(xWANQueue, configWanCmd, 0);
-	// #4
-//		DDRA |= _BV(PA3);
-//		PORTA |= _BV(PA3);
+	uint32_t ulNotificationValue;
+	const TickType_t xMaxBlockTime = pdMS_TO_TICKS(50);
+
+	DDRA |= _BV(PA2);
+	PORTA |= _BV(PA2);
 
 	for (;;)
 	{
 		xWanMonitorCounter++;
-		PORTA ^= _BV(PA3);
-		if (is_wan_configuring == false)
+		PORTA ^= _BV(PA2);
+
+		if (router_config.magic == 2)
 		{
-			result = xQueueReceive(xWANQueue, outBuffer, QUEUE_TICKS);
-
-			if (result == pdTRUE )
+			if (NWK_CONFIG) // PIN IS LOW SO CONFIGURE
 			{
-				//ERIC: Logic on this correct? (see macro def)
-				//ERIC: Should decision to go into configuration mode be made regardless of queuereceive results?
-				if (NWK_CONFIG) // PIN IS LOW SO CONFIGURE
+				// this is a blocking call... waits for WAN to configure
+				configure_wan();
+			} else if (NWK_READY)
+			{
+				result = xQueueReceive(xWANQueue, outBuffer, QUEUE_TICKS);
+
+				if (result == pdTRUE )
 				{
-					if (router_config.magic == 2 && is_wan_configuring == false)
+					PCMSK1 |= WAN_READY_ISR_MSK;
+					retries = 0;
+					for (;;)
 					{
-						configure_wan();
-					}
-//				if (router_config.magic == 2 && is_wan_configuring == false)
-//				{
-//					xQueueSendToBack(xWANQueue, configWanCmd, 0);
-//				}
-//				if (outBuffer[0] == 0x09 && outBuffer[1] == 0x09)
-//				{
-//					is_wan_configuring = true;
-//					configure_wan();
-//				}
-				} else if (NWK_READY)
-				{
-					if (outBuffer[0] == 8)
-					{
-						send_router_status_msg(pxWan, (router_status_msg_t*) outBuffer);
-					} else if (outBuffer[0] == 0x09 && outBuffer[1] == 0x09)
-					{
-						//led_alert_toggle();
-						if (is_wan_configuring == false)
+						if (outBuffer[0] == 0x08)
 						{
-							is_wan_configuring = true;
-							configure_wan();
-						}
-					} else
-					{
-						if (is_wan_configuring == false)
+							send_router_status_msg(pxWan, (router_status_msg_t*) outBuffer);
+						} else
+						{
 							sendMessage(pxWan, (btle_msg_t *) outBuffer);
+						}
+
+						// wait for ready
+						ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
+						if (ulNotificationValue == 1)
+						{
+							// we're good, continue
+							break;
+						} else
+						{
+							// retry
+							retries++;
+							if (retries > 5)
+							{
+								kill_wan();
+								vTaskDelay(xDelay);
+								init_wan();
+								break;
+							}
+						}
 					}
-
-					//ERIC: Should this be TAKE
-					result = xTaskNotifyWait(pdFALSE, /* Don't clear bits on entry. */
-					0xffffffff, /* Clear all bits on exit. */
-					&ulNotifiedValue, /* Stores the notified value. */
-					xDelaySend);
-
-//				if (result == pdFALSE)
-//					led_alert_on();
-//				else
-//					led_alert_off();
-
-					// TODO: handle timeout errors
 					memset(outBuffer, 0, BUFFER_SIZE);
+					PCMSK1 &= ~WAN_READY_ISR_MSK;
 				}
-
 			}
 		}
 	}
@@ -219,66 +206,81 @@ void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *
 	}
 }
 
-//void synchronize()
+ISR(PCINT1_vect)
+{
+	uint8_t data = PINB;
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+	uint8_t ready_value = data & (1 << PB0);
+	uint8_t config_value = data & (1 << PB1);
+	if (config_value == 1 || ready_value == 1) // PIN IS HIGH, SO WAN IS CONFIGURED, OR WE READY TO SEND NEW MESSAGE
+	{
+		vTaskNotifyGiveFromISR(xWanTaskHandle, &xHigherPriorityTaskWoken);
+
+		if (xHigherPriorityTaskWoken != pdFALSE )
+		{
+			taskYIELD();
+		}
+	}
+
+}
+
+//ISR(PCINT1_vect)
 //{
-//	while (NWK_READY)
+//	//ERIC: Look here ... could we get into a loop inside the ISR? That would cause even the task switcher to lock.
+//	//ERIC: Also, should we only enable this interrupt when we care about it?  ie, during configuration?
+//	//ERIC: Should we make an effort to interrupt on
+//	uint8_t value = PINB & (1 << PB0);
+//	if (value == 0) // PIN IS LOW, SO WE SENT
 //	{
-//		xSerialPutChar(pxWan, 'X', 5);
+//		//ERIC: Should check validity of xWanTaskHandle
+//		//ERIC: Shoudl this be GIVE instead?
+//		xTaskNotifyFromISR(xWanTaskHandle, WAN_BUSY, eSetBits, NULL );
+//
+//		//ERIC: Perhaps this is needed...
+////		if (xHigherPriorityTaskWoken != pdFALSE) {
+////				taskYIELD();
+////			}
 //	}
 //}
 
-ISR(PCINT1_vect)
-{
-	//ERIC: Look here ... could we get into a loop inside the ISR? That would cause even the task switcher to lock.
-	//ERIC: Also, should we only enable this interrupt when we care about it?  ie, during configuration?
-	//ERIC: Should we make an effort to interrupt on
-	uint8_t value = PINB & (1 << PB0);
-	if (value == 0) // PIN IS LOW, SO WE SENT
-	{
-		//ERIC: Should check validity of xWanTaskHandle
-		//ERIC: Shoudl this be GIVE instead?
-		xTaskNotifyFromISR(xWanTaskHandle, WAN_BUSY, eSetBits, NULL );
-
-		//ERIC: Perhaps this is needed...
-//		if (xHigherPriorityTaskWoken != pdFALSE) {
-//				taskYIELD();
-//			}
-	}
-}
-
 void configure_wan()
 {
-	wan_config_retry++;
+	PCMSK1 |= WAN_CONFIG_ISR_MSK;
+
 	uint32_t ulNotificationValue;
-	const TickType_t xMaxBlockTime = pdMS_TO_TICKS(200);
+	const TickType_t xMaxBlockTime = pdMS_TO_TICKS(50);
 
-// now that we have the mac from the wan, send entire nwk config
-	wan_config_network(pxWan);
-
-// wait for a response
-	ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
-
-	if (ulNotificationValue == 1)
+	wan_config_retry = 0;
+	for (;;)
 	{
-		/* The transmission ended as expected. */
-		frame_index = 0;
-		wan_config_done(pxWan);
-		frame_index = 0;
+		// now that we have the mac from the wan, send entire nwk config
+		wan_config_network(pxWan);
 
-		//vTaskDelay(xDelay);
-		is_wan_configuring = false;
-//		led_alert_off();
-	} else
-	{
-		/* The call to ulTaskNotifyTake() timed out. */
-//		configure_wan();
-//		if (wan_config_retry == 3)
-//		{
-//			//synchronize();
-//			vTaskDelay(xDelay);
-//			configure_wan();
-//		}
+		// wait for a response
+		ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
+
+		if (ulNotificationValue == 1)
+		{
+			/* The transmission ended as expected. */
+			frame_index = 0;
+			is_wan_configuring = false;
+			break;
+		} else
+		{
+			/* The call to ulTaskNotifyTake() timed out. */
+			wan_config_retry++;
+
+			if (wan_config_retry > WAN_CONFIG_RETRY_MAX)
+			{
+				kill_wan();
+				vTaskDelay(xDelay);
+				init_wan();
+				break;
+			}
+		}
 	}
+	PCMSK1 &= ~WAN_CONFIG_ISR_MSK;
 }
 
 bool isValidMessage(void)

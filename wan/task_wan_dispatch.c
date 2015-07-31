@@ -63,10 +63,10 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 					has_syncd = true;
 				}
 				break;
-			case CONFIG_RESP:
-				xTaskNotifyGive(xWanTaskHandle)
-				;
-				break;
+//			case CONFIG_RESP:
+//				xTaskNotifyGive(xWanTaskHandle)
+//				;
+				//break;
 			case CHANGESET:
 				update_changeset();
 				xQueueSendToBack(xBleQueue, outBuffer, 0);

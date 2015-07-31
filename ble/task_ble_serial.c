@@ -36,12 +36,9 @@ uint8_t inState = 0;
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 void ble_usart_tx(xComPortHandle px, uint8_t data[], int size);
 
-//uint8_t discoverCmd[] = { 0x00, 0x01, 0x06, 0x02, 0x01 };
 uint8_t endDiscoverCmd[] = { 0x00, 0x00, 0x06, 0x04 };
-//uint8_t discoverParams[] = { 0x00, 0x05, 0x06, 0x07, 0x40, 0x00, 0x32, 0x00, 0x00 };
 uint8_t connectCmd[] = { 0x00, 0x0F, 0x06, 0x03, 0x12, 0xE1, 0x2D, 0x80, 0x07, 0x00, 0x00, 0x06, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x0A, 0x00 };
 uint8_t disconnectCmd[] = { 0x00, 0x01, 0x03, 0x00, 0x00 };
-//uint8_t modeCmd[] = { 0x00, 0x02, 0x06, 0x01, 0x02, 0x02 };
 uint8_t helloCmd[] = { 0x00, 0x00, 0x00, 0x01 };
 
 static portTASK_FUNCTION(task_ble, params)
@@ -63,16 +60,12 @@ static portTASK_FUNCTION(task_ble, params)
 	// I have to send this in order for the BG to let me know that it is ready to receive messages.
 	hello_ble();
 
-	// #3
-		DDRA |= _BV(PA2);
-		PORTA |= _BV(PA2);
-
 	for (;;)
 	{
 		xBleMonitorCounter++;
 		//xSerialPutChar(pxBle, 0xAB, 5);
 		result = xSerialGetChar(pxBle, &inChar, 5);
-		PORTA ^= _BV(PA2);
+		//PORTA ^= _BV(PA2);
 		if (result == pdTRUE )
 		{
 			uint8_t data = inChar;
@@ -179,6 +172,8 @@ void task_ble_serial_start(UBaseType_t uxPriority)
 		ble_queue_created = true;
 		xTaskCreate(task_ble, "ble", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
 		xTaskCreate(task_ble_tx, "ble_tx", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
-
+		// ENABLE THE BLE
+		DDRC |= (1 << PC7); // OUTPUT
+		PORTC &= ~(1 << PC7); // LOW
 	}
 }

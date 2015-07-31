@@ -45,7 +45,7 @@ static bool is_connected = false;
 static uint8_t configCmd[] = { 0x06, 0x02 };
 //static uint8_t configWanCmd[] = { 0x09, 0x09 };
 
-//const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
+const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 
 enum classes {
 	SYSTEM_CLASS = 0x00, ATTR_DB_CLASS = 0x02, CONNECTION = 0x03, GAP_CLASS = 0x06
@@ -55,15 +55,15 @@ uint64_t router_addr_temp;
 static portTASK_FUNCTION(task_dispatch, params)
 {
 	// #2
-	DDRA |= _BV(PA1);
-	PORTA |= _BV(PA1);
+//	DDRA |= _BV(PA1);
+//	PORTA |= _BV(PA1);
 
 
 	read_config();
 	read_changeset();
 	for (;;)
 	{
-		PORTA ^= _BV(PA1);
+		//PORTA ^= _BV(PA1);
 		xBleDispatchMonitorCounter++;
 		result = xQueueReceive( xDispatchQueue, outBuffer, QUEUE_TICKS);
 		if (result == pdTRUE )
@@ -83,6 +83,7 @@ static portTASK_FUNCTION(task_dispatch, params)
 				connection_class();
 				break;
 			}
+			memset(outBuffer, 0, BUFFER_SIZE);
 
 			// TODO: check if the tag that sent the message has the correct changeset
 			// if not correct, put in ble queue that changeset needs to be updated for this tag
@@ -165,6 +166,7 @@ void system_class(xComPortHandle hnd)
 		}
 		break;
 	case 0x00: // ble boot
+		//TODO: if we missed this, we need to figure out a way to resend it
 		xQueueSendToBack(xBleQueue, configCmd, 0);
 		break;
 	}
@@ -206,7 +208,6 @@ void gap_class()
 			{
 				msg.type = MSG_TYPE_NORM;
 				result = xQueueSendToBack( xWANQueue, &msg, 0);
-				led_alert_toggle();
 			}
 		}
 		break;
@@ -233,21 +234,18 @@ void connection_class()
 	switch (outBuffer[3])
 	{
 	case 0x04: // disconnect event
-//		led_alert_toggle();
 		is_connected = false;
 
 		if (router_config.magic == 2)
 		{
-			//read_config();
 			if (is_configuring)
 			{
-				// THIS IS NOT COOL!
-				// WE NEED TO FIGURE OUT WHY THE CHIP IS LOCKING UP ON DISCONNECT/CONFIG
+				// just restart the wan after we get the config
+				// the wan_task will take care of configuring it
 				kill_wan();
-				while (1)
-					;
+				vTaskDelay(xDelay);
+				init_wan();
 			}
-			//xQueueSendToBack(xWANQueue, configWanCmd, 0);
 		}
 
 		xQueueSendToBack(xBleQueue, configCmd, 0);
