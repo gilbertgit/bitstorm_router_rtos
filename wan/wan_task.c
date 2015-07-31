@@ -86,13 +86,15 @@ static portTASK_FUNCTION(task_wan, params)
 	for (;;)
 	{
 		xWanMonitorCounter++;
-		//PORTA ^= _BV(PA3);
+		PORTA ^= _BV(PA3);
 		if (is_wan_configuring == false)
 		{
 			result = xQueueReceive(xWANQueue, outBuffer, QUEUE_TICKS);
 
 			if (result == pdTRUE )
 			{
+				//ERIC: Logic on this correct? (see macro def)
+				//ERIC: Should decision to go into configuration mode be made regardless of queuereceive results?
 				if (NWK_CONFIG) // PIN IS LOW SO CONFIGURE
 				{
 					if (router_config.magic == 2 && is_wan_configuring == false)
@@ -127,6 +129,7 @@ static portTASK_FUNCTION(task_wan, params)
 							sendMessage(pxWan, (btle_msg_t *) outBuffer);
 					}
 
+					//ERIC: Should this be TAKE
 					result = xTaskNotifyWait(pdFALSE, /* Don't clear bits on entry. */
 					0xffffffff, /* Clear all bits on exit. */
 					&ulNotifiedValue, /* Stores the notified value. */
@@ -226,10 +229,20 @@ void decode_cobs(const unsigned char *ptr, unsigned long length, unsigned char *
 
 ISR(PCINT1_vect)
 {
+	//ERIC: Look here ... could we get into a loop inside the ISR? That would cause even the task switcher to lock.
+	//ERIC: Also, should we only enable this interrupt when we care about it?  ie, during configuration?
+	//ERIC: Should we make an effort to interrupt on
 	uint8_t value = PINB & (1 << PB0);
 	if (value == 0) // PIN IS LOW, SO WE SENT
 	{
+		//ERIC: Should check validity of xWanTaskHandle
+		//ERIC: Shoudl this be GIVE instead?
 		xTaskNotifyFromISR(xWanTaskHandle, WAN_BUSY, eSetBits, NULL );
+
+		//ERIC: Perhaps this is needed...
+//		if (xHigherPriorityTaskWoken != pdFALSE) {
+//				taskYIELD();
+//			}
 	}
 }
 
