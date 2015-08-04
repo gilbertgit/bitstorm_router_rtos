@@ -31,6 +31,7 @@ uint8_t state = SEND_MAC_REQ;
 const static TickType_t xDelay = 20 / portTICK_PERIOD_MS;
 
 void wan_get_device_address() {
+	//ERIC: Assuming this isn't used anymore, but serial init call shouldn't be here.
 	xComPortHandle pxOut;
 	pxOut = xSerialPortInitMinimal(0, 38400, 10);
 	cmd_header_t cmd_header;

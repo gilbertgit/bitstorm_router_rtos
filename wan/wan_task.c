@@ -97,6 +97,8 @@ static portTASK_FUNCTION(task_wan, params)
 
 				if (result == pdTRUE )
 				{
+					//ERIC: Should we read the status register first to clear it?
+					//ERIC: Should this be wrapped in a critical section?
 					PCMSK1 |= WAN_READY_ISR_MSK;
 					retries = 0;
 					for (;;)
@@ -109,6 +111,7 @@ static portTASK_FUNCTION(task_wan, params)
 							sendMessage(pxWan, (btle_msg_t *) outBuffer);
 						}
 
+						//ERIC: Maybe the PCMSK set/reset should happen closer, like here instead of outside the retry loop?
 						// wait for ready
 						ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
 						if (ulNotificationValue == 1)
@@ -121,6 +124,7 @@ static portTASK_FUNCTION(task_wan, params)
 							retries++;
 							if (retries > 5)
 							{
+								//ERIC: Why not just reset the 1284??  It *should* bounce the WAN/BLE both on startup.
 								kill_wan();
 								vTaskDelay(xDelay);
 								init_wan();
@@ -151,10 +155,12 @@ static portTASK_FUNCTION(task_wan_rx, params)
 			{
 				decode_cobs(cobs_buffer, sizeof(cobs_buffer), decoded_msg);
 				index = 0;
+				//ERIC: Not sure this is used anymore.
 				rx_state = RECEIVED_DATA;
 
 			} else
 			{
+				//ERIC: Possible buffer overrun here... Check for index out of range
 				cobs_buffer[index++] = c;
 			}
 
@@ -211,6 +217,8 @@ ISR(PCINT1_vect)
 	uint8_t data = PINB;
 	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
+	//ERIC: This is better. Maybe also check to see if the int mask is also set?  Just an additional guard.
+
 	uint8_t ready_value = data & (1 << PB0);
 	uint8_t config_value = data & (1 << PB1);
 	if (config_value == 1 || ready_value == 1) // PIN IS HIGH, SO WAN IS CONFIGURED, OR WE READY TO SEND NEW MESSAGE
@@ -254,6 +262,7 @@ void configure_wan()
 	wan_config_retry = 0;
 	for (;;)
 	{
+		//ERIC: Perhaps move the PCMSK set/unset closer to this line rather than outside retry loop.
 		// now that we have the mac from the wan, send entire nwk config
 		wan_config_network(pxWan);
 
@@ -273,6 +282,7 @@ void configure_wan()
 
 			if (wan_config_retry > WAN_CONFIG_RETRY_MAX)
 			{
+				//ERIC: Just reset 1284.  Should bounce ble/wan on startup.
 				kill_wan();
 				vTaskDelay(xDelay);
 				init_wan();

@@ -53,6 +53,7 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 			cmd = outBuffer[0];
 			switch (cmd)
 			{
+			//ERIC: Does any of this synch stuff make sense anymore?
 			case 'T':
 			case 'E':
 			case 'F':

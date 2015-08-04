@@ -29,6 +29,10 @@
 void reset(void) __attribute__((naked)) __attribute__((section(".init3")));
 
 /*! Clear SREG_I on hardware reset. */
+//ERIC: Are we sure this is still getting invoked? Could explain the odd behavior of it resetting but then hanging.
+//ERIC: Also, additional details here: http://www.nongnu.org/avr-libc/user-manual/group__avr__watchdog.html
+//ERIC: Also, additional information here:http://www.atmel.com/images/doc2551.pdf
+//ERIC: Also, are fuses set correctly?
 void reset(void)
 {
 	cli();
@@ -56,6 +60,10 @@ int main(void)
 	_delay_ms(1500); // This is for development only. The MRKII programmer will reset the chip right after boot up.
 	/////////////////////
 
+
+	//ERIC: Where are we bouncing the two chips, wan and ble?? Shouldn't this happen at 1284 startup? Or at least in their startup tasks?
+
+
 	///////////////////////////////////////////
 	// Enable WAN
 	init_wan();
@@ -67,7 +75,7 @@ int main(void)
 //	_delay_ms(1000);
 #endif
 	///////////////////////////////////////////
-	init_wd();
+	init_wd();	//ERIC: Maybe move this into the task_monitor itself?
 	clock_init();
 	ramdisk_init();
 	sei();

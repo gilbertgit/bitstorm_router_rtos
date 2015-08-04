@@ -45,6 +45,7 @@ uint16_t fetch_ADC()
 	// Start ADC conversion
 	ADCSRA |= (1 << ADEN) | (1 << ADSC);
 	// Wait for completion
+	//ERIC: Can this turn into an infinite loop?
 	while ((ADCSRA & (1 << ADSC)) == (1 << ADSC))
 		;
 	// Get results

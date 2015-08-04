@@ -84,10 +84,11 @@ static portTASK_FUNCTION(task_ble, params)
 					inBuffer[bufferIndex++] = data;
 					inState = 1;
 				}
-				else
+				else	//ERIC: Technically, shouldn't the first byte be 0x80 or 0x00? If so, we should just bounce the CTS line here and start over.
 					inState = 0;
 				break;
 			case 1:
+				//ERIC: Check for possible overrun here. If len > BUFFER_MAX, we have a problem
 				len = data + 2;
 				inBuffer[bufferIndex++] = data;
 				inState = 4;
@@ -102,6 +103,7 @@ static portTASK_FUNCTION(task_ble, params)
 
 					bufferIndex = 0;
 					inState = 0;
+					//ERIC: Perhaps empty the inbound serial port queue here?  Probably not a problem.
 					READY_TO_RCV;
 				}
 				break;
@@ -127,6 +129,7 @@ static portTASK_FUNCTION(task_ble_tx, params)
 				// send anything else that comes in on the ble queue
 				for (int i = 1; i < size;)
 				{
+					//ERIC: Do we need to toggle HW flow control here? CTS off and ensure RTS is ready?
 					xSerialPutChar(pxBle, outBuffer[i++], 5);
 				}
 			}
@@ -173,6 +176,7 @@ void task_ble_serial_start(UBaseType_t uxPriority)
 		xTaskCreate(task_ble, "ble", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
 		xTaskCreate(task_ble_tx, "ble_tx", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
 		// ENABLE THE BLE
+		//ERIC: Probably move this to one of the tasks so it doesn't happen till after the task scheduler has started.
 		DDRC |= (1 << PC7); // OUTPUT
 		PORTC &= ~(1 << PC7); // LOW
 	}
