@@ -53,22 +53,6 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 			cmd = outBuffer[0];
 			switch (cmd)
 			{
-			//ERIC: Does any of this synch stuff make sense anymore?
-			//GE: Not really, Anytime we have an issue, we just reset the system
-			case 'T':
-			case 'E':
-			case 'F':
-			case 'G':
-				if (!has_syncd)
-				{
-					//synchronize_zigbit();
-					has_syncd = true;
-				}
-				break;
-//			case CONFIG_RESP:
-//				xTaskNotifyGive(xWanTaskHandle)
-//				;
-				//break;
 			case CHANGESET:
 				update_changeset();
 				xQueueSendToBack(xBleQueue, outBuffer, 0);

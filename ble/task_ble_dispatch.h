@@ -40,5 +40,6 @@ void system_class();
 void attr_db_class();
 void gap_class();
 void connection_class();
+void reset_transmit();
 
 #endif /* TASK_BLE_DISPATCH_H_ */

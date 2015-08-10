@@ -58,7 +58,6 @@ static portTASK_FUNCTION(task_dispatch, params)
 //	DDRA |= _BV(PA1);
 //	PORTA |= _BV(PA1);
 
-
 	read_config();
 	read_changeset();
 	for (;;)
@@ -167,6 +166,10 @@ void system_class(xComPortHandle hnd)
 		break;
 	case 0x00: // ble boot
 		//TODO: if we missed this, we need to figure out a way to resend it
+		//xQueueSendToBack(xBleQueue, configCmd, 0);
+		break;
+	case 0x01: // ble boot
+			   //TODO: if we missed this, we need to figure out a way to resend it
 		xQueueSendToBack(xBleQueue, configCmd, 0);
 		break;
 	}
@@ -242,9 +245,11 @@ void connection_class()
 			{
 				// just restart the wan after we get the config
 				// the wan_task will take care of configuring it
-				kill_wan();
-				vTaskDelay(xDelay);
-				init_wan();
+//				kill_wan();
+//				vTaskDelay(xDelay);
+//				init_wan();
+				while (1)
+					;
 			}
 		}
 

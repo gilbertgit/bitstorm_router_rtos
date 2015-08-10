@@ -170,7 +170,6 @@ static portTASK_FUNCTION(task_wan_rx, params)
 				index = 0;
 			} else
 			{
-				//ERIC: Possible buffer overrun here... Check for index out of range
 				if(index > BUFFER_MAX)
 					index = 0;
 				cobs_buffer[index++] = c;

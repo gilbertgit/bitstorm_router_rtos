@@ -18,7 +18,6 @@
 #define READY_TO_RCV		PORTD &= ~BLE_CTS_bv;
 #define NOT_READY_TO_RCV	PORTD |= BLE_CTS_bv
 
-
 static signed char inBuffer[BUFFER_MAX + 1];
 static signed char outBuffer[BUFFER_SIZE];
 volatile unsigned char len;
@@ -46,6 +45,7 @@ static portTASK_FUNCTION(task_ble, params)
 {
 	/////TEST///////////
 	init_ble();
+	vTaskDelay(50);
 	///////////////////
 
 	xBleMonitorCounter = 0;
@@ -74,24 +74,27 @@ static portTASK_FUNCTION(task_ble, params)
 			{
 			case 0:
 				//inState = (data == 0x80 || data == 0x00) ? 1 : 0;
-				if (data == 0x80)
+				if (data == 0x80 || data == 0x00)
 				{
 					inBuffer[bufferIndex++] = data;
 					inState = 1;
-				}
-				else if (data == 0x00)
+				} else
 				{
-					inBuffer[bufferIndex++] = data;
-					inState = 1;
-				}
-				else	//ERIC: Technically, shouldn't the first byte be 0x80 or 0x00? If so, we should just bounce the CTS line here and start over.
+					reset_transmit();
 					inState = 0;
+				}
 				break;
 			case 1:
-				//ERIC: Check for possible overrun here. If len > BUFFER_MAX, we have a problem
 				len = data + 2;
-				inBuffer[bufferIndex++] = data;
-				inState = 4;
+				if (len > BUFFER_MAX)
+				{
+					reset_transmit();
+					inState = 0;
+				} else
+				{
+					inBuffer[bufferIndex++] = data;
+					inState = 4;
+				}
 				break;
 			case 4:
 				inBuffer[bufferIndex++] = data;
@@ -104,7 +107,14 @@ static portTASK_FUNCTION(task_ble, params)
 					bufferIndex = 0;
 					inState = 0;
 					//ERIC: Perhaps empty the inbound serial port queue here?  Probably not a problem.
-					READY_TO_RCV;
+//					for (;;)
+//					{
+//						result = xSerialGetChar(pxBle, &inChar, 5);
+//						if (result == false)
+//							break;
+//					}
+					READY_TO_RCV
+					;
 				}
 				break;
 			}
@@ -135,6 +145,21 @@ static portTASK_FUNCTION(task_ble_tx, params)
 			}
 		}
 	}
+}
+
+void reset_transmit()
+{
+	signed char inChar;
+
+	NOT_READY_TO_RCV;
+	vTaskDelay(10);
+	for (;;)
+	{
+		result = xSerialGetChar(pxBle, &inChar, 5);
+		if (result == false)
+			break;
+	}
+	READY_TO_RCV
 }
 
 void hello_ble()
@@ -175,9 +200,5 @@ void task_ble_serial_start(UBaseType_t uxPriority)
 		ble_queue_created = true;
 		xTaskCreate(task_ble, "ble", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
 		xTaskCreate(task_ble_tx, "ble_tx", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
-		// ENABLE THE BLE
-		//ERIC: Probably move this to one of the tasks so it doesn't happen till after the task scheduler has started.
-//		DDRC |= (1 << PC7); // OUTPUT
-//		PORTC &= ~(1 << PC7); // LOW
 	}
 }
