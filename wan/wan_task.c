@@ -15,6 +15,7 @@
 #include "../shared.h"
 #include "../util/router_status_msg.h"
 #include "task_wan_dispatch.h"
+#include "util.h"
 
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
@@ -98,8 +99,12 @@ static portTASK_FUNCTION(task_wan, params)
 				if (result == pdTRUE )
 				{
 					//ERIC: Should we read the status register first to clear it?
-					//ERIC: Should this be wrapped in a critical section?
+					//uint8_t sts_reg_read = PCMSK1;
 					PCMSK1 |= WAN_READY_ISR_MSK;
+
+					//ERIC: Should this be wrapped in a critical section?
+					//GE: the Enter_critical seems to make it error out more often, not sure why yet
+					//taskENTER_CRITICAL();
 					retries = 0;
 					for (;;)
 					{
@@ -112,6 +117,7 @@ static portTASK_FUNCTION(task_wan, params)
 						}
 
 						//ERIC: Maybe the PCMSK set/reset should happen closer, like here instead of outside the retry loop?
+
 						// wait for ready
 						ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
 						if (ulNotificationValue == 1)
@@ -125,15 +131,18 @@ static portTASK_FUNCTION(task_wan, params)
 							if (retries > 5)
 							{
 								//ERIC: Why not just reset the 1284??  It *should* bounce the WAN/BLE both on startup.
-								kill_wan();
-								vTaskDelay(xDelay);
-								init_wan();
+								//GE: changed it to just reboot
+//								kill_wan();
+//								vTaskDelay(xDelay);
+//								init_wan();
+								reboot_1284();
 								break;
 							}
 						}
 					}
 					memset(outBuffer, 0, BUFFER_SIZE);
 					PCMSK1 &= ~WAN_READY_ISR_MSK;
+					//taskEXIT_CRITICAL();
 				}
 			}
 		}
@@ -150,52 +159,23 @@ static portTASK_FUNCTION(task_wan_rx, params)
 		c = 0;
 		while (xSerialGetChar(pxWan, &c, 0))
 		{
+			if(index == 0 && (c == 'T' || c == 'G' || c == 'F' || c == 'G'))
+				break;
+
 			// end of cobs message
 			if (c == 0x00)
 			{
 				decode_cobs(cobs_buffer, sizeof(cobs_buffer), decoded_msg);
+				result = xQueueSendToBack(xWanDispatchQueue, decoded_msg, 0);
 				index = 0;
-				//ERIC: Not sure this is used anymore.
-				rx_state = RECEIVED_DATA;
-
 			} else
 			{
 				//ERIC: Possible buffer overrun here... Check for index out of range
+				if(index > BUFFER_MAX)
+					index = 0;
 				cobs_buffer[index++] = c;
 			}
-
-			if (rx_state == RECEIVED_DATA)
-			{
-				result = xQueueSendToBack(xWanDispatchQueue, decoded_msg, 0);
-				state = AWAITING_DATA;
-			}
 		}
-	}
-}
-
-void sendtestdata()
-{
-	uint8_t test_frame[10];
-	test_frame[0] = 0x09;
-	test_frame[1] = 0x09;
-	test_frame[2] = 0x89;
-	test_frame[3] = 0x19;
-	test_frame[4] = 0x45;
-	test_frame[5] = 0xDD;
-	test_frame[6] = 0x02;
-	test_frame[7] = 0x09;
-	test_frame[8] = 0xAA;
-// message
-
-// checksum
-	uint8_t cs = 0;
-	for (int i = 0; i < 9; cs ^= test_frame[i++])
-		;
-	test_frame[9] = cs;
-
-	for (int i = 0; i < 10;)
-	{
-		xSerialPutChar(pxWan, test_frame[i++], 5);
 	}
 }
 
@@ -233,25 +213,6 @@ ISR(PCINT1_vect)
 
 }
 
-//ISR(PCINT1_vect)
-//{
-//	//ERIC: Look here ... could we get into a loop inside the ISR? That would cause even the task switcher to lock.
-//	//ERIC: Also, should we only enable this interrupt when we care about it?  ie, during configuration?
-//	//ERIC: Should we make an effort to interrupt on
-//	uint8_t value = PINB & (1 << PB0);
-//	if (value == 0) // PIN IS LOW, SO WE SENT
-//	{
-//		//ERIC: Should check validity of xWanTaskHandle
-//		//ERIC: Shoudl this be GIVE instead?
-//		xTaskNotifyFromISR(xWanTaskHandle, WAN_BUSY, eSetBits, NULL );
-//
-//		//ERIC: Perhaps this is needed...
-////		if (xHigherPriorityTaskWoken != pdFALSE) {
-////				taskYIELD();
-////			}
-//	}
-//}
-
 void configure_wan()
 {
 	PCMSK1 |= WAN_CONFIG_ISR_MSK;
@@ -283,9 +244,8 @@ void configure_wan()
 			if (wan_config_retry > WAN_CONFIG_RETRY_MAX)
 			{
 				//ERIC: Just reset 1284.  Should bounce ble/wan on startup.
-				kill_wan();
-				vTaskDelay(xDelay);
-				init_wan();
+				//GE: Done
+				reboot_1284();
 				break;
 			}
 		}

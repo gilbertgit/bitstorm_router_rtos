@@ -21,7 +21,7 @@
 #include "util/router_status_task.h"
 //#include "task_spi_test.h"
 #include "wan.h"
-#include "spi.h"
+#include "ble.h"
 
 /*-----------------------------------------------------------*/
 
@@ -46,14 +46,6 @@ void reset(void)
 	wdt_disable();
 }
 
-void init_wd()
-{
-	wdt_disable();
-	WDTCSR |= (1 << WDCE) | (1 << WDE); // reset mode
-	WDTCSR = (1 << WDE) | (1 << WDP2) | (1 << WDP0); // 64k Timeout
-	wdt_enable(WDTO_2S);
-}
-
 int main(void)
 {
 	/////////////////////
@@ -62,20 +54,11 @@ int main(void)
 
 
 	//ERIC: Where are we bouncing the two chips, wan and ble?? Shouldn't this happen at 1284 startup? Or at least in their startup tasks?
+	kill_wan();
+	_delay_ms(500);
+	init_wan(); // GE: for some reason I can't do this inside the task..
+	kill_ble();	// GE: I'm doing the init in the ble serial task
 
-
-	///////////////////////////////////////////
-	// Enable WAN
-	init_wan();
-	//_delay_ms(1000);
-	// Enable BLE
-#ifdef NEW_ROUTER
-//	DDRC |= (1 << PC7); // OUTPUT
-//	PORTC &= ~(1 << PC7); // LOW
-//	_delay_ms(1000);
-#endif
-	///////////////////////////////////////////
-	init_wd();	//ERIC: Maybe move this into the task_monitor itself?
 	clock_init();
 	ramdisk_init();
 	sei();

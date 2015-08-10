@@ -9,6 +9,7 @@
 #include "../wan/wan_task.h"
 #include "wan.h"
 #include "../ble/task_ble_serial.h"
+#include "util.h"
 
 #define COUNTER_MAX 5
 
@@ -27,9 +28,12 @@ static uint8_t ble_dispatch_zero_counter = 0;
 
 static portTASK_FUNCTION(task_monitor, params)
 {
-	// #1
+	// LED #1 ///////////////
 	DDRA |= _BV(PA0);
 	PORTA |= _BV(PA0);
+	////////////////////////
+
+	init_wd();
 	for (;;)
 	{
 		wdt_reset();
@@ -53,7 +57,7 @@ void wan_task_monitor()
 			vTaskDelay(xDelay);
 
 			// we got problems, REBOOT
-			kill_wan();
+			//kill_wan();
 
 			reboot_1284();
 		}
@@ -73,7 +77,7 @@ void ble_task_monitor()
 			vTaskDelay(xDelay);
 
 			// we got problems, REBOOT
-			kill_wan();
+			//kill_wan();
 
 			reboot_1284();
 		}
@@ -93,7 +97,7 @@ void ble_dispatch_task_monitor()
 			vTaskDelay(xDelay);
 
 			// we got problems, REBOOT
-			kill_wan();
+			//kill_wan();
 
 			reboot_1284();
 		}
@@ -102,10 +106,14 @@ void ble_dispatch_task_monitor()
 	ble_dispatch_previous_counter = xBleDispatchMonitorCounter;
 }
 
-void reboot_1284()
+void init_wd()
 {
-	while(1);
+	wdt_disable();
+	WDTCSR |= (1 << WDCE) | (1 << WDE); // reset mode
+	WDTCSR = (1 << WDE) | (1 << WDP2) | (1 << WDP0); // 64k Timeout
+	wdt_enable(WDTO_2S);
 }
+
 
 void task_monitor_start(UBaseType_t uxPriority)
 {

@@ -9,13 +9,14 @@
 #include <avr/interrupt.h>
 #include "task_ble_serial.h"
 #include "task_ble_dispatch.h"
+#include "ble.h"
 
 #define BUFFER_MAX		50
 #define BUFFER_SIZE     (BUFFER_MAX + 1)
 #define QUEUE_SIZE		10
 #define QUEUE_TICKS		10
-#define READY_TO_RCV		PORTD &= ~_BV(PD5);
-#define NOT_READY_TO_RCV	PORTD |= _BV(PD5);
+#define READY_TO_RCV		PORTD &= ~BLE_CTS_bv;
+#define NOT_READY_TO_RCV	PORTD |= BLE_CTS_bv
 
 
 static signed char inBuffer[BUFFER_MAX + 1];
@@ -43,16 +44,15 @@ uint8_t helloCmd[] = { 0x00, 0x00, 0x00, 0x01 };
 
 static portTASK_FUNCTION(task_ble, params)
 {
+	/////TEST///////////
+	init_ble();
+	///////////////////
+
 	xBleMonitorCounter = 0;
 	BaseType_t result;
 	signed char inChar;
 
 	bufferIndex = 0;
-
-	DDRD |= _BV(PD5);		// CTS - output
-	DDRD &= ~_BV(PD4);		// RTS - input
-
-	PORTD &= ~_BV(PD5);		// lower CTS to start the BLE stream
 
 	pxBle = xSerialPortInitMinimal(1, 38400, 50);
 
@@ -63,9 +63,9 @@ static portTASK_FUNCTION(task_ble, params)
 	for (;;)
 	{
 		xBleMonitorCounter++;
-		//xSerialPutChar(pxBle, 0xAB, 5);
+
 		result = xSerialGetChar(pxBle, &inChar, 5);
-		//PORTA ^= _BV(PA2);
+
 		if (result == pdTRUE )
 		{
 			uint8_t data = inChar;
@@ -177,7 +177,7 @@ void task_ble_serial_start(UBaseType_t uxPriority)
 		xTaskCreate(task_ble_tx, "ble_tx", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL);
 		// ENABLE THE BLE
 		//ERIC: Probably move this to one of the tasks so it doesn't happen till after the task scheduler has started.
-		DDRC |= (1 << PC7); // OUTPUT
-		PORTC &= ~(1 << PC7); // LOW
+//		DDRC |= (1 << PC7); // OUTPUT
+//		PORTC &= ~(1 << PC7); // LOW
 	}
 }

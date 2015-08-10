@@ -15,8 +15,7 @@
 #include "led.h"
 
 void task_monitor_start(UBaseType_t uxPriority);
-void reboot_1284();
-
+void init_wd();
 void wan_task_monitor();
 void ble_task_monitor();
 void ble_dispatch_task_monitor();

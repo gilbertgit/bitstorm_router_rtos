@@ -54,6 +54,7 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 			switch (cmd)
 			{
 			//ERIC: Does any of this synch stuff make sense anymore?
+			//GE: Not really, Anytime we have an issue, we just reset the system
 			case 'T':
 			case 'E':
 			case 'F':
