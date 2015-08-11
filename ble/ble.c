@@ -13,8 +13,8 @@ void init_ble(void)
 	DDRD &= ~_BV(PD4);		// RTS - input
 	PORTD &= ~BLE_CTS_bv;		// lower CTS to start the BLE stream
 
-	BLE_DDR |= BLE_EN_bv; 	// OUTPUT
-	BLE_PORT &= ~BLE_EN_bv; // LOW
+//	BLE_DDR |= BLE_EN_bv; 	// OUTPUT
+//	BLE_PORT &= ~BLE_EN_bv; // LOW
 }
 
 void kill_ble(void)

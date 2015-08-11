@@ -22,7 +22,7 @@ static portTASK_FUNCTION(task_blinky, pvParameters) {
 
 void task_blinky_start( UBaseType_t uxPriority )
 {
-	led_init();
+	//led_init();
 
 	xTaskCreate( task_blinky, "blinky", configMINIMAL_STACK_SIZE, NULL, uxPriority, ( TaskHandle_t * ) NULL );
 }

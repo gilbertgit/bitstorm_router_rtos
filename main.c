@@ -46,40 +46,100 @@ void reset(void)
 	wdt_disable();
 }
 
+void init_wd()
+{
+	wdt_disable();
+	WDTCSR |= (1 << WDCE) | (1 << WDE); // reset mode
+	//WDTCSR = (1 << WDE) | (1 << WDP2) | (1 << WDP0); // 64k Timeout
+	wdt_enable(WDTO_2S);
+}
+
+void led_boot_sequence()
+{
+	led_init();
+	led_green_on();
+	led_alert_on();
+	_delay_ms(50);
+	led_green_off();
+	led_alert_off();
+	_delay_ms(50);
+	led_green_on();
+	led_alert_on();
+	_delay_ms(50);
+	led_green_off();
+	led_alert_off();
+}
+void peripheral_boot_sequence()
+{
+	// kill wan
+	WAN_DDR |= WAN_EN_bv; // OUTPUT
+	WAN_PORT |= WAN_EN_bv;
+	// kill ble
+	BLE_DDR |= BLE_EN_bv; // OUTPUT
+	BLE_PORT |= BLE_EN_bv;
+	_delay_ms(100);
+
+	// Enable WAN - Turn the ZB on
+//	WAN_DDR |= WAN_EN_bv; // OUTPUT
+//	WAN_PORT &= ~WAN_EN_bv; // LOW
+//
+//	_delay_ms(1000);
+	// Enable BLE - Turn BG on
+	BLE_DDR |= BLE_EN_bv; 	// OUTPUT
+	BLE_PORT &= ~BLE_EN_bv; // LOW
+
+	_delay_ms(100);
+}
+
 int main(void)
 {
+	if (resetReason & (1 << 2))
+	{
+		led_init();
+		while (1)
+		{
+			_delay_ms(100);
+			led_alert_toggle();
+			wdt_reset();
+		}
+	}
+
+	_delay_ms(100);
+
+	led_boot_sequence();
+	peripheral_boot_sequence();
+	init_wd();
 	/////////////////////
-	_delay_ms(1500); // This is for development only. The MRKII programmer will reset the chip right after boot up.
+	//_delay_ms(1500); // This is for development only. The MRKII programmer will reset the chip right after boot up.
 	/////////////////////
 
-
-	//ERIC: Where are we bouncing the two chips, wan and ble?? Shouldn't this happen at 1284 startup? Or at least in their startup tasks?
-	kill_wan();
-	_delay_ms(500);
-	init_wan(); // GE: for some reason I can't do this inside the task..
-	kill_ble();	// GE: I'm doing the init in the ble serial task
-
-	clock_init();
-	ramdisk_init();
+	//clock_init();
+	//ramdisk_init();
 	sei();
 
 	//task_ble_monitor_start(tskIDLE_PRIORITY + 1);
 
-	task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
+	//task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
 
-	task_wan_start(tskIDLE_PRIORITY + 1);
+	//task_wan_start(tskIDLE_PRIORITY + 1);
 
-	task_wan_dispatch_start(tskIDLE_PRIORITY + 1);
+	//task_wan_dispatch_start(tskIDLE_PRIORITY + 1);
 
-	task_ble_serial_start(tskIDLE_PRIORITY + 1);
+	//task_ble_serial_start(tskIDLE_PRIORITY + 1);
 
-	task_blinky_start((tskIDLE_PRIORITY + 1));
+	//task_blinky_start((tskIDLE_PRIORITY + 1));
 
-	task_monitor_start(tskIDLE_PRIORITY + 1);
+	//task_monitor_start(tskIDLE_PRIORITY + 1);
 
-	task_router_status_start(tskIDLE_PRIORITY + 1);
+	//task_router_status_start(tskIDLE_PRIORITY + 1);
 
-	vTaskStartScheduler();
+	//vTaskStartScheduler();
+	while (1)
+	{
+		wdt_reset();
+		_delay_ms(500);
+		led_toggle();
+	}
 
 	// Never get here please
 	return 0;

@@ -33,7 +33,6 @@ static portTASK_FUNCTION(task_monitor, params)
 	PORTA |= _BV(PA0);
 	////////////////////////
 
-	init_wd();
 	for (;;)
 	{
 		wdt_reset();
@@ -105,15 +104,6 @@ void ble_dispatch_task_monitor()
 
 	ble_dispatch_previous_counter = xBleDispatchMonitorCounter;
 }
-
-void init_wd()
-{
-	wdt_disable();
-	WDTCSR |= (1 << WDCE) | (1 << WDE); // reset mode
-	WDTCSR = (1 << WDE) | (1 << WDP2) | (1 << WDP0); // 64k Timeout
-	wdt_enable(WDTO_2S);
-}
-
 
 void task_monitor_start(UBaseType_t uxPriority)
 {

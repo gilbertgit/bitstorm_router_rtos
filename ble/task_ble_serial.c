@@ -45,7 +45,7 @@ static portTASK_FUNCTION(task_ble, params)
 {
 	/////TEST///////////
 	init_ble();
-	vTaskDelay(50);
+	//vTaskDelay(50);
 	///////////////////
 
 	xBleMonitorCounter = 0;
@@ -56,7 +56,7 @@ static portTASK_FUNCTION(task_ble, params)
 
 	pxBle = xSerialPortInitMinimal(1, 38400, 50);
 
-	vTaskDelay(xDelay);
+	//vTaskDelay(xDelay);
 	// I have to send this in order for the BG to let me know that it is ready to receive messages.
 	hello_ble();
 
@@ -133,14 +133,18 @@ static portTASK_FUNCTION(task_ble_tx, params)
 			uint8_t size = outBuffer[0];
 			if (outBuffer[0] == 0x06 && outBuffer[1] == 0x02)
 			{
+				//////THIS IS WHERE IM AT!!!!!!!!!!!!!!!!!!!!
 				config_ble();
+			} else if (outBuffer[0] == 0x07 && outBuffer[1] == 0x03)
+			{
+				hello_ble();
 			} else
 			{
 				// send anything else that comes in on the ble queue
 				for (int i = 1; i < size;)
 				{
 					//ERIC: Do we need to toggle HW flow control here? CTS off and ensure RTS is ready?
-					xSerialPutChar(pxBle, outBuffer[i++], 5);
+					//xSerialPutChar(pxBle, outBuffer[i++], 5);
 				}
 			}
 		}
@@ -153,12 +157,12 @@ void reset_transmit()
 
 	NOT_READY_TO_RCV;
 	vTaskDelay(10);
-	for (;;)
-	{
-		result = xSerialGetChar(pxBle, &inChar, 5);
-		if (result == false)
-			break;
-	}
+//	for (;;)
+//	{
+//		result = xSerialGetChar(pxBle, &inChar, 5);
+//		if (result == false)
+//			break;
+//	}
 	READY_TO_RCV
 }
 

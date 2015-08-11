@@ -40,9 +40,12 @@ QueueHandle_t xDispatchQueue;
 router_config_t router_config;
 //changeset_t cs_v;
 
+static bool is_configured = false;
 static bool is_configuring = false;
 static bool is_connected = false;
 static uint8_t configCmd[] = { 0x06, 0x02 };
+static uint8_t helloTestCmd[] = { 0x07, 0x03 };
+
 //static uint8_t configWanCmd[] = { 0x09, 0x09 };
 
 const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
@@ -62,7 +65,12 @@ static portTASK_FUNCTION(task_dispatch, params)
 	read_changeset();
 	for (;;)
 	{
-		//PORTA ^= _BV(PA1);
+//		if(is_configured == false && is_configuring == false)
+//		{
+//			xQueueSendToBack(xBleQueue, configCmd, 0);
+//			is_configuring = true;
+//		}
+
 		xBleDispatchMonitorCounter++;
 		result = xQueueReceive( xDispatchQueue, outBuffer, QUEUE_TICKS);
 		if (result == pdTRUE )
@@ -166,7 +174,7 @@ void system_class(xComPortHandle hnd)
 		break;
 	case 0x00: // ble boot
 		//TODO: if we missed this, we need to figure out a way to resend it
-		//xQueueSendToBack(xBleQueue, configCmd, 0);
+		xQueueSendToBack(xBleQueue, helloTestCmd, 0);
 		break;
 	case 0x01: // ble boot
 			   //TODO: if we missed this, we need to figure out a way to resend it
@@ -219,7 +227,11 @@ void gap_class()
 		break;
 	case 0x04: // end discover resp
 		// send discover params
-		xQueueSendToBack(xBleQueue, discoverParams, 0);
+		//if (outBuffer[4] == 0x00 && outBuffer[5] == 0x00)
+			xQueueSendToBack(xBleQueue, discoverParams, 0);
+//		else
+//			xQueueSendToBack(xBleQueue, configCmd, 0);
+
 		break;
 	case 0x07: // discover params resp
 		// send discover cmd
@@ -228,6 +240,7 @@ void gap_class()
 	case 0x02: // discover cmd resp
 		// send mode cmd
 		xQueueSendToBack(xBleQueue, modeCmd, 0);
+		is_configured = true;
 		break;
 	}
 }

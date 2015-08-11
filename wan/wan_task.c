@@ -64,6 +64,9 @@ changeset_t changeset;
 
 static portTASK_FUNCTION(task_wan, params)
 {
+	init_wan();
+
+
 	uint8_t retries = 0;
 	message_counter = 0;
 

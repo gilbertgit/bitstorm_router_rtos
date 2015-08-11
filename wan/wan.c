@@ -20,11 +20,11 @@ void init_wan(void)
 	//PB1 is used for configure
 	WAN_DDR &= ~WAN_CONFIG_bv; //INPUT
 
-#ifdef NEW_ROUTER
-	// Enable WAN - Turn the ZB on
-	WAN_DDR |= WAN_EN_bv; // OUTPUT
-	PORTB &= ~WAN_EN_bv; // LOW
-#endif
+//#ifdef NEW_ROUTER
+//	// Enable WAN - Turn the ZB on
+//	WAN_DDR |= WAN_EN_bv; // OUTPUT
+//	PORTB &= ~WAN_EN_bv; // LOW
+//#endif
 
 
 }
@@ -32,10 +32,10 @@ void init_wan(void)
 void kill_wan(void)
 {
 	// Make everything on PORTB low
-	WAN_DDR = 0xFF;
+	//WAN_DDR = 0xFF;
 
 	// disable the interrupts
-	PCMSK1 &= ~WAN_READY_ISR_MSK;
+	//PCMSK1 &= ~WAN_READY_ISR_MSK;
 
 	// disable WAN - Turn the ZB off
 	WAN_PORT |= WAN_EN_bv; // HIGH

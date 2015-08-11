@@ -25,6 +25,14 @@ void led_toggle(void)
 	PORTD ^= LED_GREEN_bv;
 }
 
+void led_green_on(void) {
+	PORTD &= ~LED_GREEN_bv;
+}
+
+void led_green_off(void) {
+	PORTD |= LED_GREEN_bv;
+}
+
 void led_alert_on(void) {
 	PORTD &= ~LED_RED_bv;
 }
