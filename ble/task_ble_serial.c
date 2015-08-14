@@ -43,10 +43,7 @@ uint8_t helloCmd[] = { 0x00, 0x00, 0x00, 0x01 };
 
 static portTASK_FUNCTION(task_ble, params)
 {
-	/////TEST///////////
 	init_ble();
-	//vTaskDelay(50);
-	///////////////////
 
 	xBleMonitorCounter = 0;
 	BaseType_t result;
@@ -54,9 +51,8 @@ static portTASK_FUNCTION(task_ble, params)
 
 	bufferIndex = 0;
 
-	pxBle = xSerialPortInitMinimal(1, 38400, 50);
+	pxBle = xSerialPortInitMinimal(1, 38400, 80);
 
-	//vTaskDelay(xDelay);
 	// I have to send this in order for the BG to let me know that it is ready to receive messages.
 	hello_ble();
 
@@ -81,6 +77,7 @@ static portTASK_FUNCTION(task_ble, params)
 				} else
 				{
 					reset_transmit();
+					bufferIndex = 0;
 					inState = 0;
 				}
 				break;
@@ -89,6 +86,7 @@ static portTASK_FUNCTION(task_ble, params)
 				if (len > BUFFER_MAX)
 				{
 					reset_transmit();
+					bufferIndex = 0;
 					inState = 0;
 				} else
 				{
@@ -102,6 +100,7 @@ static portTASK_FUNCTION(task_ble, params)
 				if (len == 0)
 				{
 					NOT_READY_TO_RCV;
+
 					result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
 
 					bufferIndex = 0;
@@ -133,7 +132,6 @@ static portTASK_FUNCTION(task_ble_tx, params)
 			uint8_t size = outBuffer[0];
 			if (outBuffer[0] == 0x06 && outBuffer[1] == 0x02)
 			{
-				//////THIS IS WHERE IM AT!!!!!!!!!!!!!!!!!!!!
 				config_ble();
 			} else if (outBuffer[0] == 0x07 && outBuffer[1] == 0x03)
 			{
@@ -144,7 +142,7 @@ static portTASK_FUNCTION(task_ble_tx, params)
 				for (int i = 1; i < size;)
 				{
 					//ERIC: Do we need to toggle HW flow control here? CTS off and ensure RTS is ready?
-					//xSerialPutChar(pxBle, outBuffer[i++], 5);
+					xSerialPutChar(pxBle, outBuffer[i++], 5);
 				}
 			}
 		}
@@ -157,12 +155,12 @@ void reset_transmit()
 
 	NOT_READY_TO_RCV;
 	vTaskDelay(10);
-//	for (;;)
-//	{
-//		result = xSerialGetChar(pxBle, &inChar, 5);
-//		if (result == false)
-//			break;
-//	}
+	for (;;)
+	{
+		result = xSerialGetChar(pxBle, &inChar, 5);
+		if (result == false)
+			break;
+	}
 	READY_TO_RCV
 }
 
@@ -171,11 +169,13 @@ void hello_ble()
 	ble_usart_tx(pxBle, helloCmd, 4);
 }
 
+uint8_t discoverParams2[] = { 0x00, 0x05, 0x06, 0x07, 0x40, 0x00, 0x32, 0x00, 0x00 };
+
 void config_ble()
 {
 	ble_usart_tx(pxBle, endDiscoverCmd, 4);
 //	vTaskDelay(50);
-//	ble_usart_tx(pxBle, discoverParams, 9);
+	//ble_usart_tx(pxBle, discoverParams2, 9);
 //	vTaskDelay(50);
 //	ble_usart_tx(pxBle, discoverCmd, 5);
 //	vTaskDelay(50);

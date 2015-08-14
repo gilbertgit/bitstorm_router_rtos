@@ -10,6 +10,7 @@
 #include "wan.h"
 #include "../ble/task_ble_serial.h"
 #include "util.h"
+#include "../shared.h"
 
 #define COUNTER_MAX 5
 
@@ -26,17 +27,20 @@ static uint8_t ble_zero_counter = 0;
 static uint16_t ble_dispatch_previous_counter = 0;
 static uint8_t ble_dispatch_zero_counter = 0;
 
+reset_cause_t reset_cause;
+
 static portTASK_FUNCTION(task_monitor, params)
 {
+
 	// LED #1 ///////////////
 	DDRA |= _BV(PA0);
 	PORTA |= _BV(PA0);
 	////////////////////////
-
+	read_reset_cause();
 	for (;;)
 	{
 		wdt_reset();
-		vTaskDelay(xDelay); // do the check every half second
+		vTaskDelay(xDelay); // do the check every half second // A task would have to hang 2.5 seconds before a reset is triggered
 		PORTA ^= _BV(PA0);
 		wan_task_monitor();
 		ble_task_monitor();
@@ -52,11 +56,11 @@ void wan_task_monitor()
 
 		if (wan_zero_counter >= COUNTER_MAX)
 		{
-//			led_alert_on();
 			vTaskDelay(xDelay);
 
-			// we got problems, REBOOT
-			//kill_wan();
+			// we got problems, log reset cause, REBOOT
+			reset_cause.cause = WAN_TASK_M;
+			write_reset_cause();
 
 			reboot_1284();
 		}
@@ -75,8 +79,9 @@ void ble_task_monitor()
 		{
 			vTaskDelay(xDelay);
 
-			// we got problems, REBOOT
-			//kill_wan();
+			// we got problems, log reset cause, REBOOT
+			reset_cause.cause = BLE_TASK_M;
+			write_reset_cause();
 
 			reboot_1284();
 		}
@@ -95,8 +100,9 @@ void ble_dispatch_task_monitor()
 		{
 			vTaskDelay(xDelay);
 
-			// we got problems, REBOOT
-			//kill_wan();
+			// we got problems, log reset cause, REBOOT
+			reset_cause.cause = BLE_DISPATCH_TASK_M;
+			write_reset_cause();
 
 			reboot_1284();
 		}

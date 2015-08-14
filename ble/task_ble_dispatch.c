@@ -57,10 +57,6 @@ uint64_t router_addr_temp;
 
 static portTASK_FUNCTION(task_dispatch, params)
 {
-	// #2
-//	DDRA |= _BV(PA1);
-//	PORTA |= _BV(PA1);
-
 	read_config();
 	read_changeset();
 	for (;;)
@@ -226,12 +222,7 @@ void gap_class()
 
 		break;
 	case 0x04: // end discover resp
-		// send discover params
-		//if (outBuffer[4] == 0x00 && outBuffer[5] == 0x00)
 			xQueueSendToBack(xBleQueue, discoverParams, 0);
-//		else
-//			xQueueSendToBack(xBleQueue, configCmd, 0);
-
 		break;
 	case 0x07: // discover params resp
 		// send discover cmd
@@ -265,7 +256,6 @@ void connection_class()
 					;
 			}
 		}
-
 		xQueueSendToBack(xBleQueue, configCmd, 0);
 		is_configuring = false;
 		break;
@@ -280,7 +270,9 @@ bool btle_handle_le_packet2(char * msg, btle_msg_t * btle_msg)
 	btle_msg->mac = (uint64_t) msg[6] << 32 | (uint64_t) msg[5] << 24 | (uint64_t) msg[4] << 16 | (uint64_t) msg[3] << 8 | (uint64_t) msg[2];
 	btle_msg->batt = 0;
 	btle_msg->temp = 0;
-	btle_msg->cs_id = 0xAB;
+	btle_msg->cs_id = msg[22];
+	btle_msg->tagSerial = msg[24];
+	btle_msg->tagStatus = (uint16_t)&msg[26];
 
 	return true;
 }

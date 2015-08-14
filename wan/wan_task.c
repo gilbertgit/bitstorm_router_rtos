@@ -26,6 +26,7 @@ static uint8_t inBuffer[BUFFER_SIZE];
 static uint8_t frame[80];
 static uint8_t status_msg_frame[50];
 static app_msg_t app_msg;
+static tag_msg_t tag_msg;
 static cmd_send_header_t cmd_header;
 static bool queue_created = false;
 
@@ -35,15 +36,11 @@ TaskHandle_t xWanTaskHandle_rx;
 QueueHandle_t xWANQueue;
 uint16_t xWanMonitorCounter;
 
-void sendtestdata();
 UBaseType_t hwm;
 
 enum states {
 	CONFIGURE, WAIT_FOR_DATA, WAIT_FOR_NWK_BUSY, WAIT_FOR_NWK_READY, AWAITING_DATA, RECEIVED_DATA
 };
-
-static uint8_t state = CONFIGURE;
-static uint8_t rx_state = AWAITING_DATA;
 
 static int frame_index = 0;
 static int frame_length = 0;
@@ -56,7 +53,8 @@ const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 
 xComPortHandle pxWan;
 
-static uint16_t message_counter;
+static uint8_t router_serial;
+static uint32_t message_counter;
 uint8_t cobs_buffer[60];
 uint8_t decoded_msg[60];
 
@@ -66,14 +64,14 @@ static portTASK_FUNCTION(task_wan, params)
 {
 	init_wan();
 
-
 	uint8_t retries = 0;
+	router_serial = 0;
 	message_counter = 0;
 
 	xWanMonitorCounter = 0;
 	BaseType_t result;
 
-	pxWan = xSerialPortInitMinimal(0, 38400, 5);
+	pxWan = xSerialPortInitMinimal(0, 38400, 80);
 	vTaskDelay(xDelay);		// Wait 500 to make sure all systems are up before we start sending
 
 	read_config();
@@ -101,19 +99,19 @@ static portTASK_FUNCTION(task_wan, params)
 
 				if (result == pdTRUE )
 				{
+					message_counter++;
 					//ERIC: Should we read the status register first to clear it?
 					//uint8_t sts_reg_read = PCMSK1;
 					PCMSK1 |= WAN_READY_ISR_MSK;
 
 					//ERIC: Should this be wrapped in a critical section?
 					//GE: the Enter_critical seems to make it error out more often, not sure why yet
-					//taskENTER_CRITICAL();
 					retries = 0;
 					for (;;)
 					{
 						if (outBuffer[0] == 0x08)
 						{
-							send_router_status_msg(pxWan, (router_status_msg_t*) outBuffer);
+							send_router_status_msg(pxWan, (router_msg_t*) outBuffer);
 						} else
 						{
 							sendMessage(pxWan, (btle_msg_t *) outBuffer);
@@ -133,11 +131,8 @@ static portTASK_FUNCTION(task_wan, params)
 							retries++;
 							if (retries > 5)
 							{
-								//ERIC: Why not just reset the 1284??  It *should* bounce the WAN/BLE both on startup.
-								//GE: changed it to just reboot
-//								kill_wan();
-//								vTaskDelay(xDelay);
-//								init_wan();
+								reset_cause.cause = WAN_MSG_RT;
+								write_reset_cause();
 								reboot_1284();
 								break;
 							}
@@ -145,7 +140,6 @@ static portTASK_FUNCTION(task_wan, params)
 					}
 					memset(outBuffer, 0, BUFFER_SIZE);
 					PCMSK1 &= ~WAN_READY_ISR_MSK;
-					//taskEXIT_CRITICAL();
 				}
 			}
 		}
@@ -162,7 +156,7 @@ static portTASK_FUNCTION(task_wan_rx, params)
 		c = 0;
 		while (xSerialGetChar(pxWan, &c, 0))
 		{
-			if(index == 0 && (c == 'T' || c == 'G' || c == 'F' || c == 'G'))
+			if (index == 0 && (c == 'T' || c == 'G' || c == 'F' || c == 'G'))
 				break;
 
 			// end of cobs message
@@ -173,7 +167,7 @@ static portTASK_FUNCTION(task_wan_rx, params)
 				index = 0;
 			} else
 			{
-				if(index > BUFFER_MAX)
+				if (index > BUFFER_MAX)
 					index = 0;
 				cobs_buffer[index++] = c;
 			}
@@ -245,8 +239,8 @@ void configure_wan()
 
 			if (wan_config_retry > WAN_CONFIG_RETRY_MAX)
 			{
-				//ERIC: Just reset 1284.  Should bounce ble/wan on startup.
-				//GE: Done
+				reset_cause.cause = WAN_CONFIG_RT;
+				write_reset_cause();
 				reboot_1284();
 				break;
 			}
@@ -274,18 +268,23 @@ bool isValidMessage(void)
 	}
 }
 
-void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
+void send_router_status_msg(xComPortHandle hnd, router_msg_t * msg)
 {
-	msg->router_address = router_config.mac;
-	msg->msg_sent_count = message_counter;
-	msg->changeset_id = 0x0000;
-	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_status_msg_t) + 1;
+
+	msg->routerMac = router_config.mac;
+	msg->routerShort = router_config.mac & 0x0000FFFF;
+	msg->routerSerial = router_serial;
+	msg->routerConfigSet = 0x00;
+	msg->routerMsgCount = message_counter;
+	msg->routerUptime = xTaskGetTickCount();
+	msg->routerBattery = 0x00;
+	msg->routerTemperature = 0x00;
+	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_msg_t) + 1;
 
 	cmd_header.command = CMD_SEND;
 	cmd_header.pan_id = router_config.pan_id;
 	cmd_header.short_id = router_config.mac & 0x0000FFFF;
-	;
-	cmd_header.message_length = sizeof(router_status_msg_t);
+	cmd_header.message_length = sizeof(router_msg_t);
 
 	int frame_index = 1;
 // header
@@ -294,7 +293,7 @@ void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
 		status_msg_frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
 	}
 // message
-	for (int i = 0; i < sizeof(router_status_msg_t); i++)
+	for (int i = 0; i < sizeof(router_msg_t); i++)
 	{
 		status_msg_frame[frame_index++] = ((uint8_t *) (msg))[i];
 	}
@@ -310,17 +309,59 @@ void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
 	}
 }
 
+//void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
+//{
+//	msg->router_address = router_config.mac;
+//	msg->msg_sent_count = message_counter;
+//	msg->changeset_id = 0x0000;
+//	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_status_msg_t) + 1;
+//
+////	msg->routerSerial = router_serial;
+////	msg->routerConfigSet = 0x00;
+////	msg->routerMsgCount = message_counter;
+////	msg->routerUptime = xTaskGetTickCount();
+////	msg->routerBattery = 0x00;
+////	msg->routerTemperature = 0x00;
+//
+//	cmd_header.command = CMD_SEND;
+//	cmd_header.pan_id = router_config.pan_id;
+//	cmd_header.short_id = router_config.mac & 0x0000FFFF;
+//	cmd_header.message_length = sizeof(router_status_msg_t);
+//
+//	int frame_index = 1;
+//// header
+//	for (int i = 0; i < sizeof(cmd_header); i++)
+//	{
+//		status_msg_frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
+//	}
+//// message
+//	for (int i = 0; i < sizeof(router_status_msg_t); i++)
+//	{
+//		status_msg_frame[frame_index++] = ((uint8_t *) (msg))[i];
+//	}
+//// checksum
+//	uint8_t cs = 0;
+//	for (int i = 0; i < frame_index; cs ^= status_msg_frame[i++])
+//		;
+//	status_msg_frame[frame_index++] = cs;
+//
+//	for (int i = 0; i < frame_index;)
+//	{
+//		xSerialPutChar(hnd, status_msg_frame[i++], 5);
+//	}
+//}
+
 void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 {
 
-	build_app_msg(msg, &app_msg);
+	build_app_msg(msg, &tag_msg);
 
-	frame[0] = sizeof(cmd_header) + sizeof(app_msg) + 1;
+	frame[0] = sizeof(cmd_header) + sizeof(tag_msg) + 1;
 
 	if (msg->type == MSG_TYPE_IN_PROX)
-		app_msg.messageType = CMD_IN_PROX;
+		tag_msg.messageType = CMD_IN_PROX;
 	else if (msg->type == MSG_TYPE_OUT_PROX)
-		app_msg.messageType = CMD_OUT_PROX;
+		tag_msg.messageType = CMD_OUT_PROX;
 
 #ifdef ZB_ACK
 	cmd_header.command = CMD_ACK_SEND;
@@ -329,7 +370,7 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 #endif
 	cmd_header.pan_id = router_config.pan_id;
 	cmd_header.short_id = 0x00;
-	cmd_header.message_length = sizeof(app_msg);
+	cmd_header.message_length = sizeof(tag_msg);
 
 	int frame_index = 1;
 // header
@@ -338,9 +379,9 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 		frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
 	}
 // message
-	for (int i = 0; i < sizeof(app_msg_t); i++)
+	for (int i = 0; i < sizeof(tag_msg_t); i++)
 	{
-		frame[frame_index++] = ((uint8_t *) (&app_msg))[i];
+		frame[frame_index++] = ((uint8_t *) (&tag_msg))[i];
 	}
 // checksum
 	uint8_t cs = 0;
@@ -355,39 +396,106 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 	}
 
 // keep track of how many messages we have sent out
-	message_counter++;
+	router_serial++;
 //	hwm = uxTaskGetStackHighWaterMark(NULL);
 //	sprintf((char*)frame, "A:%d\r\n", hwm);
 //	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
 }
 
-void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg)
+//void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
+//{
+//
+//	build_app_msg(msg, &app_msg);
+//
+//	frame[0] = sizeof(cmd_header) + sizeof(app_msg) + 1;
+//
+//	if (msg->type == MSG_TYPE_IN_PROX)
+//		app_msg.messageType = CMD_IN_PROX;
+//	else if (msg->type == MSG_TYPE_OUT_PROX)
+//		app_msg.messageType = CMD_OUT_PROX;
+//
+//#ifdef ZB_ACK
+//	cmd_header.command = CMD_ACK_SEND;
+//#else
+//	cmd_header.command = CMD_SEND;
+//#endif
+//	cmd_header.pan_id = router_config.pan_id;
+//	cmd_header.short_id = 0x00;
+//	cmd_header.message_length = sizeof(app_msg);
+//
+//	int frame_index = 1;
+//// header
+//	for (int i = 0; i < sizeof(cmd_header); i++)
+//	{
+//		frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
+//	}
+//// message
+//	for (int i = 0; i < sizeof(app_msg_t); i++)
+//	{
+//		frame[frame_index++] = ((uint8_t *) (&app_msg))[i];
+//	}
+//// checksum
+//	uint8_t cs = 0;
+//	for (int i = 0; i < frame_index; cs ^= frame[i++])
+//		;
+//	frame[frame_index++] = cs;
+//
+//// send bytes
+//	for (int i = 0; i < frame_index;)
+//	{
+//		xSerialPutChar(hnd, frame[i++], 5);
+//	}
+//
+//// keep track of how many messages we have sent out
+//	router_serial++;
+////	hwm = uxTaskGetStackHighWaterMark(NULL);
+////	sprintf((char*)frame, "A:%d\r\n", hwm);
+////	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
+//}
+
+void build_app_msg(btle_msg_t *btle_msg, tag_msg_t *msg)
 {
 
 	msg->messageType = 0x01;
-	msg->nodeType = 0x01;
-	msg->extAddr = btle_msg->mac;
-	msg->shortAddr = router_config.mac & 0x0000FFFF;
-	msg->routerAddr = router_config.mac;
-//softVersion;
-//channelMask;
-	msg->panId = router_config.pan_id; // need to set pan in zigbit
-	msg->workingChannel = router_config.channel;
-	msg->parentShortAddr = 1;
-	msg->lqi = 0;
-
-	msg->rssi = btle_msg->rssi;
-	msg->battery = btle_msg->batt;
-	msg->temperature = btle_msg->temp;
-
-// Calculate CS
-//msg->cs = 0;
-//for (int i = 0; i < sizeof(app_msg_t) - 1; msg->cs ^= ((uint8_t*) msg)[i++])
-//	;
-
-// ACTUALLY, don't calculate the CS, let the frame cs do the trick
-	msg->cs = 0xCC;
+	msg->routerMac = router_config.mac;
+	msg->routerShort = router_config.mac & 0x0000FFFF;
+	msg->tagMac = btle_msg->mac;
+	msg->tagConfigSet = btle_msg->cs_id;
+	msg->tagSerial = btle_msg->tagSerial;
+	msg->tagStatus = btle_msg->tagStatus;
+	msg->tagLqi = 0x00;
+	msg->tagRssi = btle_msg->rssi;
+	msg->tagBattery = 0x00;
+	msg->tagTemperature = 0x00;
 }
+
+//void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg)
+//{
+//
+//	msg->messageType = 0x01;
+//	msg->nodeType = 0x01;
+//	msg->extAddr = btle_msg->mac;
+//	msg->shortAddr = router_config.mac & 0x0000FFFF;
+//	msg->routerAddr = router_config.mac;
+////softVersion;
+////channelMask;
+//	msg->panId = router_config.pan_id; // need to set pan in zigbit
+//	msg->workingChannel = router_config.channel;
+//	msg->parentShortAddr = 1;
+//	msg->lqi = 0;
+//
+//	msg->rssi = btle_msg->rssi;
+//	msg->battery = btle_msg->batt;
+//	msg->temperature = btle_msg->temp;
+//
+//// Calculate CS
+////msg->cs = 0;
+////for (int i = 0; i < sizeof(app_msg_t) - 1; msg->cs ^= ((uint8_t*) msg)[i++])
+////	;
+//
+//// ACTUALLY, don't calculate the CS, let the frame cs do the trick
+//	msg->cs = 0xCC;
+//}
 
 void wan_reset_frame(void)
 {

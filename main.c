@@ -80,66 +80,88 @@ void peripheral_boot_sequence()
 	_delay_ms(100);
 
 	// Enable WAN - Turn the ZB on
-//	WAN_DDR |= WAN_EN_bv; // OUTPUT
-//	WAN_PORT &= ~WAN_EN_bv; // LOW
-//
-//	_delay_ms(1000);
+	WAN_DDR |= WAN_EN_bv; // OUTPUT
+	WAN_PORT &= ~WAN_EN_bv; // LOW
+	_delay_ms(100);
+
 	// Enable BLE - Turn BG on
 	BLE_DDR |= BLE_EN_bv; 	// OUTPUT
 	BLE_PORT &= ~BLE_EN_bv; // LOW
-
 	_delay_ms(100);
 }
 
 int main(void)
 {
-	if (resetReason & (1 << 2))
-	{
-		led_init();
-		while (1)
-		{
-			_delay_ms(100);
-			led_alert_toggle();
-			wdt_reset();
-		}
-	}
+//	if (resetReason & (1 << 2))
+//	{
+//		led_init();
+//		while (1)
+//		{
+//			_delay_ms(100);
+//			led_alert_toggle();
+//			wdt_reset();
+//		}
+//	}
 
 	_delay_ms(100);
 
 	led_boot_sequence();
 	peripheral_boot_sequence();
 	init_wd();
-	/////////////////////
-	//_delay_ms(1500); // This is for development only. The MRKII programmer will reset the chip right after boot up.
-	/////////////////////
 
-	//clock_init();
+	clock_init();
 	//ramdisk_init();
 	sei();
 
 	//task_ble_monitor_start(tskIDLE_PRIORITY + 1);
 
-	//task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
+	task_ble_dispatch_start(tskIDLE_PRIORITY + 1);
 
-	//task_wan_start(tskIDLE_PRIORITY + 1);
+	task_wan_start(tskIDLE_PRIORITY + 1);
 
-	//task_wan_dispatch_start(tskIDLE_PRIORITY + 1);
+	task_wan_dispatch_start(tskIDLE_PRIORITY + 1);
 
-	//task_ble_serial_start(tskIDLE_PRIORITY + 1);
+	task_ble_serial_start(tskIDLE_PRIORITY + 1);
 
-	//task_blinky_start((tskIDLE_PRIORITY + 1));
+	task_blinky_start((tskIDLE_PRIORITY + 1));
 
-	//task_monitor_start(tskIDLE_PRIORITY + 1);
+	task_monitor_start(tskIDLE_PRIORITY + 1);
 
-	//task_router_status_start(tskIDLE_PRIORITY + 1);
+	task_router_status_start(tskIDLE_PRIORITY + 1);
 
-	//vTaskStartScheduler();
-	while (1)
-	{
-		wdt_reset();
-		_delay_ms(500);
-		led_toggle();
-	}
+	vTaskStartScheduler();
+//	while (1)
+//	{
+//		wdt_reset();
+//		_delay_ms(50);
+//		led_green_on();
+//		_delay_ms(50);
+//		led_green_off();
+//		_delay_ms(50);
+//		led_green_on();
+//		_delay_ms(50);
+//		led_green_off();
+//		_delay_ms(50);
+//		led_green_on();
+//
+//		// kill wan
+//		WAN_DDR |= WAN_EN_bv; // OUTPUT
+//		WAN_PORT |= WAN_EN_bv;
+//		// kill ble
+//		BLE_DDR |= BLE_EN_bv; // OUTPUT
+//		BLE_PORT |= BLE_EN_bv;
+//		_delay_ms(100);
+//
+//		// Enable WAN - Turn the ZB on
+//		WAN_DDR |= WAN_EN_bv; // OUTPUT
+//		WAN_PORT &= ~WAN_EN_bv; // LOW
+//		_delay_ms(100);
+//
+//		// Enable BLE - Turn BG on
+//		BLE_DDR |= BLE_EN_bv; 	// OUTPUT
+//		BLE_PORT &= ~BLE_EN_bv; // LOW
+//		_delay_ms(1000);
+//	}
 
 	// Never get here please
 	return 0;

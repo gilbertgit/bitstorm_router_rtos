@@ -29,9 +29,9 @@ extern uint16_t xWanMonitorCounter;
 extern xComPortHandle pxWan;
 
 void task_wan_start(UBaseType_t uxPriority);
-void send_router_status_msg(xComPortHandle hnd, router_status_msg_t *msg);
+void send_router_status_msg(xComPortHandle hnd, router_msg_t *msg);
 void sendMessage(xComPortHandle hnd, btle_msg_t *msg);
-void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg);
+void build_app_msg(btle_msg_t *btle_msg, tag_msg_t *msg);
 void wan_state_configure(void);
 void waitForResp();
 void configure_wan();

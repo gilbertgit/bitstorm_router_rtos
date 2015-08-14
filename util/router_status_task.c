@@ -7,12 +7,14 @@
 #include "router_status_task.h"
 #include "router_status_msg.h"
 #include "../wan/wan_task.h"
+#include "../shared.h"
 
 const static TickType_t xDelay = 5000 / portTICK_PERIOD_MS;
 
 uint16_t adc_result;
 static router_status_msg_t msg;
 static BaseType_t result;
+static router_msg_t router_msg;
 
 QueueHandle_t xDispatchQueue;
 TaskHandle_t xRouterStatusHandle;
@@ -26,10 +28,16 @@ static portTASK_FUNCTION(task_router_status, params)
 	{
 		vTaskDelay(xDelay);
 
-		msg.type = 8;
-		msg.reset_source = resetReason;
-		msg.adc = fetch_ADC();
-		result = xQueueSendToBack( xWANQueue, &msg, 0);
+//		msg.type = 8;
+//		msg.reset_source = resetReason;
+//		msg.adc = fetch_ADC();
+//		msg.reset_cause = reset_cause.cause;
+//		result = xQueueSendToBack( xWANQueue, &msg, 0);
+
+		router_msg.messageType = 0x08;
+		router_msg.routerReset = resetReason;
+		router_msg.resetTask = reset_cause.cause;
+		result = xQueueSendToBack( xWANQueue, &router_msg, 0);
 	}
 }
 
