@@ -12,7 +12,6 @@
 const static TickType_t xDelay = 5000 / portTICK_PERIOD_MS;
 
 uint16_t adc_result;
-static router_status_msg_t msg;
 static BaseType_t result;
 static router_msg_t router_msg;
 
@@ -26,13 +25,7 @@ static portTASK_FUNCTION(task_router_status, params)
 	initADC();
 	for (;;)
 	{
-		vTaskDelay(xDelay);
-
-//		msg.type = 8;
-//		msg.reset_source = resetReason;
-//		msg.adc = fetch_ADC();
-//		msg.reset_cause = reset_cause.cause;
-//		result = xQueueSendToBack( xWANQueue, &msg, 0);
+		vTaskDelay(xDelay); // only send router status messages every 5 seconds
 
 		router_msg.messageType = 0x08;
 		router_msg.routerReset = resetReason;

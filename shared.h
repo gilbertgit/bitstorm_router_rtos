@@ -43,6 +43,8 @@ typedef struct
 
 extern changeset_t changeset;
 
+extern uint32_t my_tick_count;
+
 void read_config();
 void write_config();
 void read_reset_cause();

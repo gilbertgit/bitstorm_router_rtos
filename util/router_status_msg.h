@@ -8,16 +8,6 @@
 #ifndef ROUTER_STATUS_MSG_H_
 #define ROUTER_STATUS_MSG_H_
 
-typedef struct router_status_msg_t {
-	uint8_t type;
-	uint64_t router_address;
-	uint16_t msg_sent_count;
-	uint8_t reset_source;
-	uint16_t adc;
-	uint16_t changeset_id;
-	uint8_t reset_cause;
-} router_status_msg_t;
-
 typedef struct router_msg_t {
 	uint8_t messageType;		// 0x02 for router
 	uint64_t routerMac;			// full MAC or source router

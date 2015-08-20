@@ -25,7 +25,6 @@ static signed char outBuffer[BUFFER_SIZE];
 static uint8_t inBuffer[BUFFER_SIZE];
 static uint8_t frame[80];
 static uint8_t status_msg_frame[50];
-static app_msg_t app_msg;
 static tag_msg_t tag_msg;
 static cmd_send_header_t cmd_header;
 static bool queue_created = false;
@@ -276,7 +275,7 @@ void send_router_status_msg(xComPortHandle hnd, router_msg_t * msg)
 	msg->routerSerial = router_serial;
 	msg->routerConfigSet = 0x00;
 	msg->routerMsgCount = message_counter;
-	msg->routerUptime = xTaskGetTickCount();
+	msg->routerUptime = my_tick_count;
 	msg->routerBattery = 0x00;
 	msg->routerTemperature = 0x00;
 	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_msg_t) + 1;

@@ -7,6 +7,7 @@
 #include "task.h"
 
 /* Application include files. */
+#include "shared.h"
 #include "task_blinky.h"
 //#include "task_serial_test.h"
 //#include "task_adc_test.h"
@@ -24,7 +25,7 @@
 #include "ble.h"
 
 /*-----------------------------------------------------------*/
-
+uint32_t my_tick_count;
 // This function is called upon a HARDWARE RESET:
 void reset(void) __attribute__((naked)) __attribute__((section(".init3")));
 
@@ -168,6 +169,11 @@ int main(void)
 }
 
 //extern xComPortHandle pxWan;
+
+void vApplicationTickHook(void)
+{
+	my_tick_count++;
+}
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
 {
