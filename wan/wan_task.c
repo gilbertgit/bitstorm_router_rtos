@@ -86,14 +86,18 @@ static portTASK_FUNCTION(task_wan, params)
 		xWanMonitorCounter++;
 		PORTA ^= _BV(PA2);
 
+		TRACE(0x99);
+
 		if (router_config.magic == 2)
 		{
 			if (NWK_CONFIG) // PIN IS LOW SO CONFIGURE
 			{
 				// this is a blocking call... waits for WAN to configure
+				TRACE(0x02);
 				configure_wan();
 			} else if (NWK_READY)
 			{
+				TRACE(0x03);
 				result = xQueueReceive(xWANQueue, outBuffer, QUEUE_TICKS);
 
 				if (result == pdTRUE )
@@ -101,6 +105,7 @@ static portTASK_FUNCTION(task_wan, params)
 					message_counter++;
 					//ERIC: Should we read the status register first to clear it?
 					//uint8_t sts_reg_read = PCMSK1;
+					TRACE(0x04);
 					PCMSK1 |= WAN_READY_ISR_MSK;
 
 					//ERIC: Should this be wrapped in a critical section?
@@ -108,21 +113,28 @@ static portTASK_FUNCTION(task_wan, params)
 					retries = 0;
 					for (;;)
 					{
+						xWanMonitorCounter++;
+						TRACE(0x05);
+
 						if (outBuffer[0] == 0x08)
 						{
+							TRACE(0x06);
 							send_router_status_msg(pxWan, (router_msg_t*) outBuffer);
 						} else
 						{
+							TRACE(0x07);
 							sendMessage(pxWan, (btle_msg_t *) outBuffer);
 						}
 
 						//ERIC: Maybe the PCMSK set/reset should happen closer, like here instead of outside the retry loop?
 
 						// wait for ready
+						TRACE(0x08);
 						ulNotificationValue = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
 						if (ulNotificationValue == 1)
 						{
 							// we're good, continue
+							TRACE(0x09);
 							break;
 						} else
 						{
@@ -130,14 +142,15 @@ static portTASK_FUNCTION(task_wan, params)
 							retries++;
 							if (retries > 5)
 							{
-								reset_cause.cause = WAN_MSG_RT;
-								write_reset_cause();
-								reboot_1284();
+								TRACE(0x77);
+								reboot_1284(WAN_MSG_RT);
 								break;
 							}
 						}
 					}
+					TRACE(0x0B);
 					memset(outBuffer, 0, BUFFER_SIZE);
+					TRACE(0x0C);
 					PCMSK1 &= ~WAN_READY_ISR_MSK;
 				}
 			}
@@ -238,9 +251,7 @@ void configure_wan()
 
 			if (wan_config_retry > WAN_CONFIG_RETRY_MAX)
 			{
-				reset_cause.cause = WAN_CONFIG_RT;
-				write_reset_cause();
-				reboot_1284();
+				reboot_1284(WAN_CONFIG_RT);
 				break;
 			}
 		}

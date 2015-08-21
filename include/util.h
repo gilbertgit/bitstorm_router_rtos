@@ -8,6 +8,8 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
-void reboot_1284(void);
+#include <stdint.h>
+
+void reboot_1284(uint8_t cause);
 
 #endif /* UTIL_H_ */

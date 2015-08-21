@@ -8,9 +8,18 @@
 #include <avr/eeprom.h>
 #include "shared.h"
 
-router_config_t EEMEM router_config_temp = { 12345678, 1234, 1 };
+//typedef struct
+//{
+//	uint8_t magic;
+//	uint64_t mac;
+//	uint16_t pan_id;
+//	uint8_t channel;
+//}router_config_t;
 
-router_config_t EEMEM reset_cause_temp = { 12345678, 1234, 1 };
+
+router_config_t EEMEM router_config_temp = { 0xFF, 0x1122334455667788, 0x1122, 0x11 };
+
+reset_cause_t EEMEM reset_cause_temp = { 0xFF, 0xFFFF };
 
 void read_config()
 {

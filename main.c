@@ -91,6 +91,59 @@ void peripheral_boot_sequence()
 	_delay_ms(100);
 }
 
+
+void emit_boot_byte(uint8_t u8Data){
+  while((UCSR0A &(1<<UDRE0)) == 0);
+  UDR0 = u8Data;
+}
+void uart_boot_sequence()
+{
+#define serBAUD_DIV_CONSTANT			( ( unsigned long ) 16 )
+#define BOOT_BAUD						38400
+#define serTX_ENABLE					( ( unsigned char ) _BV(TXEN0) )
+#define serEIGHT_DATA_BITS				( ( unsigned char ) (_BV(UCSZ01) | _BV(UCSZ00)) )
+
+	unsigned long ulBaudRateCounter;
+	unsigned char ucByte;
+
+	/* Calculate the baud rate register value from the equation in the data sheet. */
+	ulBaudRateCounter = ( configCPU_CLOCK_HZ / ( serBAUD_DIV_CONSTANT * BOOT_BAUD)) - (unsigned long) 1;
+
+	/* Set the baud rate. */
+	ucByte = (unsigned char) (ulBaudRateCounter & (unsigned long) 0xff);
+	UBRR0L = ucByte;
+
+	ulBaudRateCounter >>= (unsigned long) 8;
+	ucByte = (unsigned char) (ulBaudRateCounter & (unsigned long) 0xff);
+	UBRR0H = ucByte;
+
+	/* Just enable TX */
+	UCSR0B = (serTX_ENABLE);
+
+	/* Set the data bits to 8. */
+	UCSR0C = ( serEIGHT_DATA_BITS);
+
+
+	_delay_ms(100);
+
+	read_reset_cause();
+
+	emit_boot_byte(0xAB);
+	emit_boot_byte(0xCD);
+	emit_boot_byte(0xEF);
+	emit_boot_byte(0x77);
+	emit_boot_byte(resetReason);
+	emit_boot_byte(reset_cause.cause);
+	emit_boot_byte((uint8_t)(reset_cause.trace >> 8));
+	emit_boot_byte((uint8_t)(reset_cause.trace & 0x00FF));
+	emit_boot_byte(0xAB);
+	emit_boot_byte(0xCD);
+	emit_boot_byte(0xEF);
+	emit_boot_byte(0x77);
+}
+
+
+
 int main(void)
 {
 //	if (resetReason & (1 << 2))
@@ -107,6 +160,7 @@ int main(void)
 	_delay_ms(100);
 
 	led_boot_sequence();
+	uart_boot_sequence();
 	peripheral_boot_sequence();
 	init_wd();
 

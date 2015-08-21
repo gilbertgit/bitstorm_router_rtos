@@ -35,7 +35,7 @@ TaskHandle_t xWanDispatchHandle;
 changeset_t changeset;
 
 // Create variable in EEPROM with initial values
-changeset_t EEMEM changeset_temp = { 12345, 1234, 1 };
+changeset_t EEMEM changeset_temp = { 0x00 };
 
 
 static portTASK_FUNCTION(task_wan_dispatch, params)

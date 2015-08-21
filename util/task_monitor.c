@@ -59,11 +59,12 @@ void wan_task_monitor()
 			vTaskDelay(xDelay);
 
 			// we got problems, log reset cause, REBOOT
-			reset_cause.cause = WAN_TASK_M;
-			write_reset_cause();
-
-			reboot_1284();
+			reboot_1284(WAN_TASK_M);
 		}
+	}
+	else
+	{
+		wan_zero_counter = 0;
 	}
 
 	wan_previous_counter = xWanMonitorCounter;
@@ -80,10 +81,7 @@ void ble_task_monitor()
 			vTaskDelay(xDelay);
 
 			// we got problems, log reset cause, REBOOT
-			reset_cause.cause = BLE_TASK_M;
-			write_reset_cause();
-
-			reboot_1284();
+			reboot_1284(BLE_TASK_M);
 		}
 	}
 
@@ -101,10 +99,7 @@ void ble_dispatch_task_monitor()
 			vTaskDelay(xDelay);
 
 			// we got problems, log reset cause, REBOOT
-			reset_cause.cause = BLE_DISPATCH_TASK_M;
-			write_reset_cause();
-
-			reboot_1284();
+			reboot_1284(BLE_DISPATCH_TASK_M);
 		}
 	}
 

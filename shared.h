@@ -8,9 +8,11 @@
 #ifndef SHARED_H_
 #define SHARED_H_
 
+#define TRACE(x)	reset_cause.trace = x;
+
 enum reset_causes
 {
-WAN_TASK_M = 0x01, BLE_TASK_M = 0x02, BLE_DISPATCH_TASK_M = 0x03, WAN_MSG_RT = 0x04, WAN_CONFIG_RT = 0x05
+WAN_TASK_M = 0x01, BLE_TASK_M = 0x02, BLE_DISPATCH_TASK_M = 0x03, WAN_MSG_RT = 0x04, WAN_CONFIG_RT = 0x05, WAN_CFG = 0x06
 };
 
 typedef struct
@@ -30,6 +32,7 @@ typedef struct
 typedef struct
 {
 	uint8_t cause;
+	uint16_t trace;
 }reset_cause_t;
 
 extern shared_t shared;
