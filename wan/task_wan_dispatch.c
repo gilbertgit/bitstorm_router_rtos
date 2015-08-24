@@ -16,6 +16,7 @@
 #include "wan_task.h"
 #include "../ble/task_ble_serial.h"
 #include "../shared.h"
+#include "util.h"
 
 #define NWK_READY (PINB & (1 << PB0))
 #define BUFFER_MAX		50
@@ -26,7 +27,7 @@ enum comands {
 	CONFIG_RESP = 0x03, CHANGESET = 0X09, WAN_STATUS = 0xEF
 };
 enum wan_statuses {
-	SYNC_CONF = 0x0E
+	MSG_TIMEOUT = 0x0A, CONF_RETRIES = 0x0B, MSG_ERROR = 0x0C, INVALID_MSG = 0x0D, SYNC_CONF = 0x0E
 };
 
 static signed char outBuffer[BUFFER_SIZE];
@@ -67,6 +68,11 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 				{
 				case SYNC_CONF:
 					sync_count = 0;
+					break;
+				case CONF_RETRIES:
+					// not cool. LWM had an issue and couldn't get a
+					// message to the coordinator after 3 retries. REBOOT!
+					reboot_1284(CONF_RETRIES);
 					break;
 				}
 				break;
