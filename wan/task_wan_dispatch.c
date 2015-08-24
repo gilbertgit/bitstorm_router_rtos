@@ -15,6 +15,7 @@
 #include "task_wan_dispatch.h"
 #include "wan_task.h"
 #include "../ble/task_ble_serial.h"
+#include "../shared.h"
 
 #define NWK_READY (PINB & (1 << PB0))
 #define BUFFER_MAX		50
@@ -22,7 +23,10 @@
 #define QUEUE_TICKS		10
 
 enum comands {
-	CONFIG_RESP = 0x03, CHANGESET = 0X09
+	CONFIG_RESP = 0x03, CHANGESET = 0X09, WAN_STATUS = 0xEF
+};
+enum wan_statuses {
+	SYNC_CONF = 0x0E
 };
 
 static signed char outBuffer[BUFFER_SIZE];
@@ -31,22 +35,21 @@ bool queue_created = false;
 
 QueueHandle_t xWanDispatchQueue;
 TaskHandle_t xWanDispatchHandle;
-
 changeset_t changeset;
+uint16_t xWanDispatchMonitorCounter;
 
 // Create variable in EEPROM with initial values
 changeset_t EEMEM changeset_temp = { 0x00 };
 
-
 static portTASK_FUNCTION(task_wan_dispatch, params)
 {
 	uint8_t cmd;
-	bool has_syncd;
+	uint8_t wan_status;
 	read_changeset();
 
 	for (;;)
 	{
-		has_syncd = false;
+		xWanDispatchMonitorCounter++;
 		result = xQueueReceive( xWanDispatchQueue, outBuffer, QUEUE_TICKS);
 		if (result == pdTRUE )
 		{
@@ -56,6 +59,16 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 			case CHANGESET:
 				update_changeset();
 				xQueueSendToBack(xBleQueue, outBuffer, 0);
+				break;
+			case WAN_STATUS:
+				// successful sync will clear the counter
+				wan_status = outBuffer[1];
+				switch (wan_status)
+				{
+				case SYNC_CONF:
+					sync_count = 0;
+					break;
+				}
 				break;
 			}
 		}
@@ -76,8 +89,9 @@ void synchronize_zigbit()
 {
 	while (NWK_READY)
 	{
-		xSerialPutChar(pxWan, 'X', 5);
+		xSerialPutChar(pxWan, 'X', 5); // 'X' is 58 in hex
 	}
+	sync_count++;
 }
 
 void task_wan_dispatch_start(UBaseType_t uxPriority)

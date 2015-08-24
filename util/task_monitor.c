@@ -7,6 +7,7 @@
 
 #include "task_monitor.h"
 #include "../wan/wan_task.h"
+#include "../wan/task_wan_dispatch.h"
 #include "wan.h"
 #include "../ble/task_ble_serial.h"
 #include "util.h"
@@ -26,6 +27,9 @@ static uint8_t ble_zero_counter = 0;
 
 static uint16_t ble_dispatch_previous_counter = 0;
 static uint8_t ble_dispatch_zero_counter = 0;
+
+static uint16_t wan_dispatch_previous_counter = 0;
+static uint8_t wan_dispatch_zero_counter = 0;
 
 reset_cause_t reset_cause;
 
@@ -61,8 +65,7 @@ void wan_task_monitor()
 			// we got problems, log reset cause, REBOOT
 			reboot_1284(WAN_TASK_M);
 		}
-	}
-	else
+	} else
 	{
 		wan_zero_counter = 0;
 	}
@@ -83,6 +86,9 @@ void ble_task_monitor()
 			// we got problems, log reset cause, REBOOT
 			reboot_1284(BLE_TASK_M);
 		}
+	} else
+	{
+		ble_zero_counter = 0;
 	}
 
 	ble_previous_counter = xBleMonitorCounter;
@@ -101,9 +107,33 @@ void ble_dispatch_task_monitor()
 			// we got problems, log reset cause, REBOOT
 			reboot_1284(BLE_DISPATCH_TASK_M);
 		}
+	} else
+	{
+		ble_dispatch_zero_counter = 0;
 	}
 
 	ble_dispatch_previous_counter = xBleDispatchMonitorCounter;
+}
+
+void wan_dispatch_task_monitor()
+{
+	if ((xWanDispatchMonitorCounter - wan_dispatch_previous_counter) == 0)
+	{
+		wan_dispatch_zero_counter++;
+
+		if (wan_dispatch_previous_counter >= COUNTER_MAX)
+		{
+			vTaskDelay(xDelay);
+
+			// we got problems, log reset cause, REBOOT
+			reboot_1284(WAN_DISPATCH_TASK_M);
+		}
+	} else
+	{
+		wan_dispatch_zero_counter = 0;
+	}
+
+	wan_dispatch_previous_counter = xWanDispatchMonitorCounter;
 }
 
 void task_monitor_start(UBaseType_t uxPriority)

@@ -56,6 +56,7 @@ static uint8_t router_serial;
 static uint32_t message_counter;
 uint8_t cobs_buffer[60];
 uint8_t decoded_msg[60];
+uint8_t sync_count = 0;
 
 changeset_t changeset;
 
@@ -143,7 +144,12 @@ static portTASK_FUNCTION(task_wan, params)
 							if (retries > 5)
 							{
 								TRACE(0x77);
-								reboot_1284(WAN_MSG_RT);
+								if (sync_count <= 5)
+									synchronize_zigbit();
+								else
+								{
+									reboot_1284(WAN_MSG_RT);
+								}
 								break;
 							}
 						}
@@ -168,8 +174,8 @@ static portTASK_FUNCTION(task_wan_rx, params)
 		c = 0;
 		while (xSerialGetChar(pxWan, &c, 0))
 		{
-			if (index == 0 && (c == 'T' || c == 'G' || c == 'F' || c == 'G'))
-				break;
+//			if (index == 0 && (c == 'T' || c == 'G' || c == 'F' || c == 'G'))
+//				break;
 
 			// end of cobs message
 			if (c == 0x00)

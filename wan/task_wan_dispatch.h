@@ -9,6 +9,7 @@
 #define TASK_WAN_DISPATCH_H_
 
 extern QueueHandle_t xWanDispatchQueue;
+extern uint16_t xWanDispatchMonitorCounter;
 
 void synchronize_zigbit();
 
