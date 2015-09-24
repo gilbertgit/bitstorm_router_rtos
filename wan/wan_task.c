@@ -52,7 +52,7 @@ const static TickType_t xDelay = 500 / portTICK_PERIOD_MS;
 
 xComPortHandle pxWan;
 
-static uint8_t router_serial;
+static uint16_t router_serial;
 static uint32_t message_counter;
 uint8_t cobs_buffer[60];
 uint8_t decoded_msg[60];
@@ -323,49 +323,8 @@ void send_router_status_msg(xComPortHandle hnd, router_msg_t * msg)
 	{
 		xSerialPutChar(hnd, status_msg_frame[i++], 5);
 	}
+	router_serial++;
 }
-
-//void send_router_status_msg(xComPortHandle hnd, router_status_msg_t * msg)
-//{
-//	msg->router_address = router_config.mac;
-//	msg->msg_sent_count = message_counter;
-//	msg->changeset_id = 0x0000;
-//	status_msg_frame[0] = sizeof(cmd_header) + sizeof(router_status_msg_t) + 1;
-//
-////	msg->routerSerial = router_serial;
-////	msg->routerConfigSet = 0x00;
-////	msg->routerMsgCount = message_counter;
-////	msg->routerUptime = xTaskGetTickCount();
-////	msg->routerBattery = 0x00;
-////	msg->routerTemperature = 0x00;
-//
-//	cmd_header.command = CMD_SEND;
-//	cmd_header.pan_id = router_config.pan_id;
-//	cmd_header.short_id = router_config.mac & 0x0000FFFF;
-//	cmd_header.message_length = sizeof(router_status_msg_t);
-//
-//	int frame_index = 1;
-//// header
-//	for (int i = 0; i < sizeof(cmd_header); i++)
-//	{
-//		status_msg_frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
-//	}
-//// message
-//	for (int i = 0; i < sizeof(router_status_msg_t); i++)
-//	{
-//		status_msg_frame[frame_index++] = ((uint8_t *) (msg))[i];
-//	}
-//// checksum
-//	uint8_t cs = 0;
-//	for (int i = 0; i < frame_index; cs ^= status_msg_frame[i++])
-//		;
-//	status_msg_frame[frame_index++] = cs;
-//
-//	for (int i = 0; i < frame_index;)
-//	{
-//		xSerialPutChar(hnd, status_msg_frame[i++], 5);
-//	}
-//}
 
 void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 {
@@ -418,57 +377,6 @@ void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
 //	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
 }
 
-//void sendMessage(xComPortHandle hnd, btle_msg_t *msg)
-//{
-//
-//	build_app_msg(msg, &app_msg);
-//
-//	frame[0] = sizeof(cmd_header) + sizeof(app_msg) + 1;
-//
-//	if (msg->type == MSG_TYPE_IN_PROX)
-//		app_msg.messageType = CMD_IN_PROX;
-//	else if (msg->type == MSG_TYPE_OUT_PROX)
-//		app_msg.messageType = CMD_OUT_PROX;
-//
-//#ifdef ZB_ACK
-//	cmd_header.command = CMD_ACK_SEND;
-//#else
-//	cmd_header.command = CMD_SEND;
-//#endif
-//	cmd_header.pan_id = router_config.pan_id;
-//	cmd_header.short_id = 0x00;
-//	cmd_header.message_length = sizeof(app_msg);
-//
-//	int frame_index = 1;
-//// header
-//	for (int i = 0; i < sizeof(cmd_header); i++)
-//	{
-//		frame[frame_index++] = ((uint8_t *) (&cmd_header))[i];
-//	}
-//// message
-//	for (int i = 0; i < sizeof(app_msg_t); i++)
-//	{
-//		frame[frame_index++] = ((uint8_t *) (&app_msg))[i];
-//	}
-//// checksum
-//	uint8_t cs = 0;
-//	for (int i = 0; i < frame_index; cs ^= frame[i++])
-//		;
-//	frame[frame_index++] = cs;
-//
-//// send bytes
-//	for (int i = 0; i < frame_index;)
-//	{
-//		xSerialPutChar(hnd, frame[i++], 5);
-//	}
-//
-//// keep track of how many messages we have sent out
-//	router_serial++;
-////	hwm = uxTaskGetStackHighWaterMark(NULL);
-////	sprintf((char*)frame, "A:%d\r\n", hwm);
-////	for (int i=0; frame[i]; xSerialPutChar(pxWan, frame[i++], 5));
-//}
-
 void build_app_msg(btle_msg_t *btle_msg, tag_msg_t *msg)
 {
 
@@ -484,34 +392,6 @@ void build_app_msg(btle_msg_t *btle_msg, tag_msg_t *msg)
 	msg->tagBattery = 0x00;
 	msg->tagTemperature = 0x00;
 }
-
-//void build_app_msg(btle_msg_t *btle_msg, app_msg_t *msg)
-//{
-//
-//	msg->messageType = 0x01;
-//	msg->nodeType = 0x01;
-//	msg->extAddr = btle_msg->mac;
-//	msg->shortAddr = router_config.mac & 0x0000FFFF;
-//	msg->routerAddr = router_config.mac;
-////softVersion;
-////channelMask;
-//	msg->panId = router_config.pan_id; // need to set pan in zigbit
-//	msg->workingChannel = router_config.channel;
-//	msg->parentShortAddr = 1;
-//	msg->lqi = 0;
-//
-//	msg->rssi = btle_msg->rssi;
-//	msg->battery = btle_msg->batt;
-//	msg->temperature = btle_msg->temp;
-//
-//// Calculate CS
-////msg->cs = 0;
-////for (int i = 0; i < sizeof(app_msg_t) - 1; msg->cs ^= ((uint8_t*) msg)[i++])
-////	;
-//
-//// ACTUALLY, don't calculate the CS, let the frame cs do the trick
-//	msg->cs = 0xCC;
-//}
 
 void wan_reset_frame(void)
 {

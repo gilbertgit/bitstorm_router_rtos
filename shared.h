@@ -35,22 +35,29 @@ typedef struct
 	uint16_t trace;
 }reset_cause_t;
 
-extern shared_t shared;
-extern router_config_t router_config;
-extern reset_cause_t reset_cause;
-
 typedef struct
 {
 	uint8_t id;
 }changeset_t;
 
+typedef struct
+{
+	uint8_t threshold;
+}rssi_threshold_t;
+
+extern shared_t shared;
+extern router_config_t router_config;
+extern reset_cause_t reset_cause;
 extern changeset_t changeset;
 extern uint32_t my_tick_count;
 extern uint8_t sync_count;
+extern rssi_threshold_t rssi_threshold;
 
 void read_config();
 void write_config();
 void read_reset_cause();
 void write_reset_cause();
+void read_rssi_threshold();
+void write_rssi_threshold();
 
 #endif /* SHARED_H_ */

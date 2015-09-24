@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <avr/interrupt.h>
 #include "task_ble_serial.h"
 #include "task_ble_dispatch.h"
@@ -18,7 +19,7 @@
 #define READY_TO_RCV		PORTD &= ~BLE_CTS_bv;
 #define NOT_READY_TO_RCV	PORTD |= BLE_CTS_bv
 
-static signed char inBuffer[BUFFER_MAX + 1];
+static signed char inBuffer[BUFFER_SIZE];
 static signed char outBuffer[BUFFER_SIZE];
 volatile unsigned char len;
 
@@ -103,6 +104,7 @@ static portTASK_FUNCTION(task_ble, params)
 
 					result = xQueueSendToBack( xDispatchQueue, inBuffer, 0);
 
+					memset(inBuffer, 0, BUFFER_SIZE);
 					bufferIndex = 0;
 					inState = 0;
 					//ERIC: Perhaps empty the inbound serial port queue here?  Probably not a problem.
@@ -117,6 +119,7 @@ static portTASK_FUNCTION(task_ble, params)
 				}
 				break;
 			}
+
 		}
 	}
 }

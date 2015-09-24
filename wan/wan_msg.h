@@ -46,8 +46,8 @@ typedef struct PACK tag_msg_t {
 	uint64_t routerMac;			// full MAC or source router
 	uint16_t routerShort;		// short id of MAC source router - used for two-way comm
 	uint64_t tagMac;			// full MAC of ble tag
-	uint8_t tagConfigSet;		// current configuration set id of tag
-	uint8_t tagSerial;			// sequential serial number of tag’s report - used to group pings
+	uint16_t tagConfigSet;		// current configuration set id of tag
+	uint16_t tagSerial;			// sequential serial number of tag’s report - used to group pings
 	uint16_t tagStatus;			// tag status value (bit mask) within adv data
 	uint8_t tagLqi;				// link quality indicator of tag-to-router signal
 	uint8_t tagRssi;			// signal strength of tag-to-router signal

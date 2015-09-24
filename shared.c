@@ -21,6 +21,8 @@ router_config_t EEMEM router_config_temp = { 0xFF, 0x1122334455667788, 0x1122, 0
 
 reset_cause_t EEMEM reset_cause_temp = { 0xFF, 0xFFFF };
 
+rssi_threshold_t EEMEM rssi_threshold_temp = { 0xFF };
+
 void read_config()
 {
 
@@ -41,5 +43,15 @@ void read_reset_cause()
 void write_reset_cause()
 {
 	eeprom_update_block(&reset_cause, &reset_cause_temp, sizeof(reset_cause_t));
+}
+
+void read_rssi_threshold()
+{
+	eeprom_read_block(&rssi_threshold, &rssi_threshold_temp, sizeof(rssi_threshold_t));
+}
+
+void write_rssi_threshold()
+{
+	eeprom_update_block(&rssi_threshold, &rssi_threshold_temp, sizeof(rssi_threshold_t));
 }
 

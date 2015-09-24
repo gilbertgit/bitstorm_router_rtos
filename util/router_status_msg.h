@@ -9,12 +9,12 @@
 #define ROUTER_STATUS_MSG_H_
 
 typedef struct router_msg_t {
-	uint8_t messageType;		// 0x02 for router
+	uint8_t messageType;		// 0x08 for router
 	uint64_t routerMac;			// full MAC or source router
 	uint16_t routerShort;		// short id of MAC source router - used for two-way comm
 	uint8_t routerReset;		// recent reset reason
 	uint8_t resetTask;			// task that caused the reset
-	uint8_t routerSerial;		// sequential serial number of router msg
+	uint16_t routerSerial;		// sequential serial number of router msg
 	uint8_t routerConfigSet;	// current configuration set id of router
 	uint32_t routerMsgCount;	// current tag messages received count since reset
 	uint32_t routerUptime;		// current ms since reset

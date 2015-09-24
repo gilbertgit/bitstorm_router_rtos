@@ -21,8 +21,8 @@ typedef struct {
 	void *next;
 	uint32_t last_sent;
 	uint8_t count;
-	uint8_t cs_id;
-	uint8_t tagSerial;
+	uint16_t cs_id;
+	uint16_t tagSerial;
 	uint16_t tagStatus;
 
 } btle_msg_t;

@@ -12,6 +12,7 @@
 #include "queue.h"
 #include "serial.h"
 #include "led.h"
+#include "timers.h"
 #include "task_wan_dispatch.h"
 #include "wan_task.h"
 #include "../ble/task_ble_serial.h"
@@ -27,9 +28,8 @@ enum comands {
 	CONFIG_RESP = 0x03, CHANGESET = 0X09, WAN_STATUS = 0xEF
 };
 enum wan_statuses {
-	MSG_TIMEOUT = 0x0A, CONF_RETRIES = 0x0B, MSG_ERROR = 0x0C, INVALID_MSG = 0x0D, SYNC_CONF = 0x0E
+	MSG_TIMEOUT = 0x0A, CONF_RETRIES = 0x0B, MSG_ERROR = 0x0C, INVALID_MSG = 0x0D, SYNC_CONF = 0x0E, FATAL = 0xEE
 };
-
 static signed char outBuffer[BUFFER_SIZE];
 static BaseType_t result;
 bool queue_created = false;
@@ -38,15 +38,34 @@ QueueHandle_t xWanDispatchQueue;
 TaskHandle_t xWanDispatchHandle;
 changeset_t changeset;
 uint16_t xWanDispatchMonitorCounter;
+uint8_t errorMsgCounter = 0;
 
 // Create variable in EEPROM with initial values
 changeset_t EEMEM changeset_temp = { 0x00 };
+
+xTimerHandle xSoftwareTimer = NULL;
+#define mainSOFTWARE_TIMER_PERIOD_MS ( 5000 / portTICK_PERIOD_MS )
+
+void vTimerCallback(xTimerHandle xTimer)
+{
+	if (errorMsgCounter > 5)
+		reboot_1284(FATAL);
+	else
+	{
+		errorMsgCounter = 0;
+		xTimerStart(xSoftwareTimer, 0);
+	}
+}
 
 static portTASK_FUNCTION(task_wan_dispatch, params)
 {
 	uint8_t cmd;
 	uint8_t wan_status;
 	read_changeset();
+
+
+	xSoftwareTimer = xTimerCreate("ErrorCheckTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdTRUE, (void *) 0, vTimerCallback);
+	xTimerStart(xSoftwareTimer, 0);
 
 	for (;;)
 	{
@@ -68,11 +87,18 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 				{
 				case SYNC_CONF:
 					sync_count = 0;
+					errorMsgCounter++;
 					break;
 				case CONF_RETRIES:
 					// not cool. LWM had an issue and couldn't get a
 					// message to the coordinator after 3 retries. REBOOT!
 					reboot_1284(CONF_RETRIES);
+					break;
+				case MSG_TIMEOUT:
+					errorMsgCounter++;
+					break;
+				case INVALID_MSG:
+					errorMsgCounter++;
 					break;
 				}
 				break;
@@ -80,6 +106,8 @@ static portTASK_FUNCTION(task_wan_dispatch, params)
 		}
 	}
 }
+
+
 
 void update_changeset()
 {

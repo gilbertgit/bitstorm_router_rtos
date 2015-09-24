@@ -41,5 +41,6 @@ void attr_db_class();
 void gap_class();
 void connection_class();
 void reset_transmit();
+void update_rssi_threshold();
 
 #endif /* TASK_BLE_DISPATCH_H_ */

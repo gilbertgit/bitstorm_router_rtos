@@ -102,6 +102,11 @@
 #define configIDLE_SHOULD_YIELD		1
 #define configQUEUE_REGISTRY_SIZE	0
 
+#define configUSE_TIMERS 			1
+#define configTIMER_TASK_PRIORITY               3
+#define configTIMER_QUEUE_LENGTH                10
+#define configTIMER_TASK_STACK_DEPTH            configMINIMAL_STACK_SIZE
+
 /* Check for stack overflow by inspecting 16 known bytes on stack */
 #define configCHECK_FOR_STACK_OVERFLOW 2
 

@@ -38,6 +38,7 @@ static btle_msg_t msg;
 uint16_t xBleDispatchMonitorCounter;
 QueueHandle_t xDispatchQueue;
 router_config_t router_config;
+rssi_threshold_t rssi_threshold;
 //changeset_t cs_v;
 
 static bool is_configured = false;
@@ -59,13 +60,9 @@ static portTASK_FUNCTION(task_dispatch, params)
 {
 	read_config();
 	read_changeset();
+	read_rssi_threshold();
 	for (;;)
 	{
-//		if(is_configured == false && is_configuring == false)
-//		{
-//			xQueueSendToBack(xBleQueue, configCmd, 0);
-//			is_configuring = true;
-//		}
 
 		xBleDispatchMonitorCounter++;
 		result = xQueueReceive( xDispatchQueue, outBuffer, QUEUE_TICKS);
@@ -136,19 +133,6 @@ static portTASK_FUNCTION(task_dispatch, params)
 				}
 			}
 #endif
-
-//			bufferIndex = 0;
-//			if (result != pdTRUE )
-//			{
-//				//led_alert_on();
-//			}
-//			command = 0;
-//
-//			if (router_config.magic != 2)
-//			{
-//				led_alert_toggle();
-//				continue;
-//			}
 		}
 
 	}
@@ -180,6 +164,8 @@ void system_class(xComPortHandle hnd)
 }
 
 static uint8_t getAddrCmd[] = { 0x05, 0x00, 0x00, 0x00, 0x02 };
+#define CONFIG_HANDLE 23
+#define RSSI_THRESHOLD_HANDLE 26
 
 void attr_db_class()
 {
@@ -189,10 +175,17 @@ void attr_db_class()
 	case 0x00: // GATT value change
 		is_connected = true;
 		is_configuring = true;
-		handle_router_config_packet2((char*) outBuffer, &router_config);
-
-		// get the ble address to finish the config
-		xQueueSendToBack(xBleQueue, getAddrCmd, 0);
+		switch ((uint16_t) outBuffer[6])
+		{
+		case CONFIG_HANDLE:
+			handle_router_config_packet2((char*) outBuffer, &router_config);
+			// get the ble address to finish the config
+			xQueueSendToBack(xBleQueue, getAddrCmd, 0);
+			break;
+		case RSSI_THRESHOLD_HANDLE:
+			update_rssi_threshold();
+			break;
+		}
 		break;
 	}
 }
@@ -207,22 +200,30 @@ void gap_class()
 	switch (outBuffer[3])
 	{
 	case 0x00: // discover event
-		// TODO: filter data that is not from BS tags
-		if (outBuffer[11] == 0x00 && outBuffer[12] == 0x00)
+		// TODO: filter data that is not from BS tags //// 0x54, 0x67 = TG
+		if (outBuffer[20] == 0x54 && outBuffer[21] == 0x67)
 		{
-			btle_handle_le_packet2((char *) &outBuffer[4], &msg);
-			if (router_config.magic == 2 && is_connected == false)
+			// check if the message is within the rssi threshold (default is -99)
+			if (abs(outBuffer[4]) <= rssi_threshold.threshold)
 			{
-				msg.type = MSG_TYPE_NORM;
-				result = xQueueSendToBack( xWANQueue, &msg, 0);
+				// start reading after the header on the 5th byte
+				btle_handle_le_packet2((char *) &outBuffer[4], &msg);
+
+				// if the router is configured and the BTLE is not connected to, send message to WAN queue
+				if (router_config.magic == 2 && is_connected == false)
+				{
+					msg.type = 0x01;
+					result = xQueueSendToBack( xWANQueue, &msg, 0);
+				}
 			}
 		}
+
 		break;
 	case 0x03: // connect response
 
 		break;
 	case 0x04: // end discover resp
-			xQueueSendToBack(xBleQueue, discoverParams, 0);
+		xQueueSendToBack(xBleQueue, discoverParams, 0);
 		break;
 	case 0x07: // discover params resp
 		// send discover cmd
@@ -262,6 +263,12 @@ void connection_class()
 	}
 }
 
+void update_rssi_threshold()
+{
+	rssi_threshold.threshold = (uint8_t) outBuffer[11];
+	write_rssi_threshold();
+}
+
 bool btle_handle_le_packet2(char * msg, btle_msg_t * btle_msg)
 {
 	memset(btle_msg, 0, sizeof(btle_msg_t));
@@ -270,9 +277,9 @@ bool btle_handle_le_packet2(char * msg, btle_msg_t * btle_msg)
 	btle_msg->mac = (uint64_t) msg[6] << 32 | (uint64_t) msg[5] << 24 | (uint64_t) msg[4] << 16 | (uint64_t) msg[3] << 8 | (uint64_t) msg[2];
 	btle_msg->batt = 0;
 	btle_msg->temp = 0;
-	btle_msg->cs_id = msg[22];
-	btle_msg->tagSerial = msg[24];
-	btle_msg->tagStatus = (uint16_t)&msg[26];
+	btle_msg->cs_id = (uint16_t) msg[23] << 8 | (uint16_t) msg[22];
+	btle_msg->tagSerial = (uint16_t) msg[25] << 8 | (uint16_t) msg[24];
+	btle_msg->tagStatus = (uint16_t) msg[27] << 8 | (uint16_t) msg[26];
 
 	return true;
 }
